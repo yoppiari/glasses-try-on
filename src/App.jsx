@@ -142,7 +142,7 @@ export default function App() {
         <div className="app">
             {/* Header */}
             <header className="header">
-                <h1>Virtual Try-On</h1>
+                <h1>Kacamata DOOZ</h1>
                 <span className="version-badge">Beta</span>
             </header>
 
