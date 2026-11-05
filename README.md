@@ -1,3 +1,9 @@
+## Attribution
+
+This repository is based on [**vaibhav-space/try-on**](https://github.com/vaibhav-space/try-on) by **Vaibhav Dubey**, used under the [MIT License](LICENSE) (Copyright (c) 2026 Vaibhav Dubey). The original commit history is preserved; changes here are limited to demo/build configuration.
+
+---
+
 # 2.5D Virtual Eyewear Try-On
 
 > 🚀 **Live Interactive Web Demo:** [**https://vaibhav-space.github.io/try-on/**](https://vaibhav-space.github.io/try-on/)  
