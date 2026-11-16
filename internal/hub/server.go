@@ -106,7 +106,11 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/auth/magic-verify", s.handleMagicVerify)
 	s.mux.HandleFunc("/api/auth/magic-exchange", s.handleMagicExchange)
 
-	// Member Portal ("Data Saya")
+	// Member Portal ("Data Saya") & Standalone Capture SDK
+	s.mux.HandleFunc("/sdk/dooz-capture.js", s.handleServeCaptureSDK)
+	s.mux.HandleFunc("/data-saya", s.handlePortalWebPage)
+	s.mux.HandleFunc("/data-saya/", s.handlePortalWebPage)
+	s.mux.HandleFunc("/api/portal/demo-magic-link", s.handlePortalDemoMagicLink)
 	s.mux.HandleFunc("/api/portal/me", s.handlePortalMe)
 	s.mux.HandleFunc("/api/portal/confirm-recycled", s.handlePortalConfirmRecycled)
 	s.mux.HandleFunc("/api/portal/sessions/revoke-all", s.handlePortalRevokeAllSessions)
@@ -172,6 +176,20 @@ func (s *Server) handleCaptureIdentify(w http.ResponseWriter, r *http.Request) {
 
 	if !s.allowRate("capture:" + req.IPAddress) {
 		writeError(w, http.StatusTooManyRequests, "rate limit exceeded")
+		return
+	}
+
+	// Anti-spam honeypot: return uniform 200 OK response without polluting database
+	if strings.TrimSpace(req.Honeypot) != "" {
+		fakeCode := GenerateVerificationCodeStr()
+		waURL := fmt.Sprintf("https://wa.me/%s?text=Halo%%20DOOZ%%2C%%20verifikasi%%20hasil%%20ukur%%20saya%%20kode%%3A%%20%s", s.cfg.OfficialWANumber, fakeCode)
+		writeJSON(w, http.StatusOK, IdentifyLeadResult{
+			ContactID:        GenerateUUID(),
+			VerificationCode: fakeCode,
+			ExpiresAt:        req.Now.Add(VerificationCodeTTL),
+			WAMeURL:          waURL,
+			UniformMessage:   "Silakan kirim pesan WhatsApp berisi kode verifikasi untuk menerima hasil ukur dan kartu member DOOZ.",
+		})
 		return
 	}
 

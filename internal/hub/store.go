@@ -149,6 +149,8 @@ type IdentifyLeadInput struct {
 	Signature         string       `json:"sig"`
 	GrantCRMWAConsent bool         `json:"consent_crm_wa"`
 	GrantHealth       bool         `json:"consent_health_prescription"`
+	Honeypot          string       `json:"honeypot,omitempty"`
+	TurnstileToken    string       `json:"turnstile_token,omitempty"`
 	IPAddress         string       `json:"-"`
 	UserAgent         string       `json:"-"`
 	Now               time.Time    `json:"-"`

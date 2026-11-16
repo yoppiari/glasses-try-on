@@ -463,3 +463,82 @@ func doJSONRequest(t *testing.T, url, method string, payload any, headers map[st
 	_, _ = buf.ReadFrom(resp.Body)
 	return resp, buf.String()
 }
+
+
+func TestCaptureSDKAndPortalWebEndpoints(t *testing.T) {
+	srv := NewServer(ServerConfig{})
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	// 1. Standalone Capture SDK endpoint (/sdk/dooz-capture.js)
+	resp, body := doJSONRequest(t, ts.URL+"/sdk/dooz-capture.js", http.MethodGet, nil, nil)
+	if resp.StatusCode != http.StatusOK || !strings.Contains(body, "DoozCaptureSDK") {
+		t.Fatalf("expected /sdk/dooz-capture.js to serve DoozCaptureSDK, got %d", resp.StatusCode)
+	}
+
+	// 2. Portal Web Page (/data-saya) with strict Referrer-Policy: no-referrer
+	resp, body = doJSONRequest(t, ts.URL+"/data-saya", http.MethodGet, nil, nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 on /data-saya, got %d", resp.StatusCode)
+	}
+	if got := resp.Header.Get("Referrer-Policy"); got != "no-referrer" {
+		t.Fatalf("expected Referrer-Policy: no-referrer on /data-saya, got %q", got)
+	}
+	if !strings.Contains(body, `name="referrer" content="no-referrer"`) {
+		t.Fatalf("expected meta referrer no-referrer in /data-saya HTML")
+	}
+
+	// 3. Anti-spam Honeypot returns uniform 200 OK response without saving contact to store
+	resp, body = doJSONRequest(t, ts.URL+"/api/capture/identify", http.MethodPost, map[string]any{
+		"full_name":    "Spam Bot",
+		"phone":        "081200001111",
+		"city_regency": "Jakarta",
+		"honeypot":     "http://spam-site.example",
+	}, nil)
+	if resp.StatusCode != http.StatusOK || !strings.Contains(body, "DZ-") {
+		t.Fatalf("expected uniform 200 response for honeypot spam, got %d %s", resp.StatusCode, body)
+	}
+	if len(srv.cfg.Store.data.Contacts) != 0 {
+		t.Fatalf("expected honeypot submission NOT to persist contact in store, got %d contacts", len(srv.cfg.Store.data.Contacts))
+	}
+
+	// 4. Demo magic link endpoint + full Portal Member lifecycle (revoke-all, consents opt-out, privacy delete)
+	resp, body = doJSONRequest(t, ts.URL+"/api/portal/demo-magic-link", http.MethodPost, map[string]any{
+		"recycled_passive": false,
+	}, nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 on /api/portal/demo-magic-link, got %d %s", resp.StatusCode, body)
+	}
+	var demoRes struct {
+		MagicToken string `json:"magic_token"`
+	}
+	_ = json.Unmarshal([]byte(body), &demoRes)
+
+	resp, body = doJSONRequest(t, ts.URL+"/api/auth/magic-exchange", http.MethodPost, map[string]any{
+		"token": demoRes.MagicToken,
+	}, nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 on magic-exchange, got %d %s", resp.StatusCode, body)
+	}
+	var exch struct {
+		SessionToken string `json:"session_token"`
+	}
+	_ = json.Unmarshal([]byte(body), &exch)
+
+	// Opt-out consent
+	resp, body = doJSONRequest(t, ts.URL+"/api/portal/consents", http.MethodPost, map[string]any{
+		"scope":   ConsentCRMWA,
+		"granted": false,
+	}, map[string]string{"Authorization": "Bearer " + exch.SessionToken})
+	if resp.StatusCode != http.StatusOK || !strings.Contains(body, `"granted":false`) {
+		t.Fatalf("expected opt-out consent update to succeed, got %d %s", resp.StatusCode, body)
+	}
+
+	// UU PDP Data deletion
+	resp, body = doJSONRequest(t, ts.URL+"/api/portal/privacy/delete", http.MethodPost, map[string]any{
+		"immediate": true,
+	}, map[string]string{"Authorization": "Bearer " + exch.SessionToken})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected privacy delete to succeed, got %d %s", resp.StatusCode, body)
+	}
+}
