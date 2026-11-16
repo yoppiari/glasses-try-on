@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { AppHeader, CornerBrackets, DoozLogogram, DoozWordmark } from './brand/Brand'
 import {
   SIZE_CHART_DEFAULT,
   DEFAULT_OFFICIAL_WA,
@@ -68,7 +69,7 @@ function DynamicQRMatrixSVG({ token = 'DQR1.DEMO.SIGNATURE' }) {
       height="176"
       className="dooz-qr-svg"
       role="img"
-      aria-label="Kartu Member QR Dinamis DOOZ"
+      aria-label="QR Kartu Member DOOZ"
     >
       <rect width={size} height={size} fill="#ffffff" rx="1.2" />
       {cells.map((row, rIdx) =>
@@ -80,7 +81,7 @@ function DynamicQRMatrixSVG({ token = 'DQR1.DEMO.SIGNATURE' }) {
               y={rIdx}
               width={0.92}
               height={0.92}
-              fill="#0a0a0a"
+              fill="#252A2D"
               rx="0.15"
             />
           ) : null
@@ -198,6 +199,13 @@ function buildOfflineDemoView(recycledMode = false) {
   }
 }
 
+// Tombol simulasi magic link hanya untuk mode dev (`npm run dev`). Di produksi, staf membuat
+// Kartu Member contoh dari menu Laporan di aplikasi staf (/staf/laporan).
+const SHOW_DEV_DEMO = Boolean(import.meta.env.DEV)
+
+const EXPIRED_LINK_MESSAGE =
+  'Link ini sudah tidak berlaku (link hanya bisa dipakai sekali dan berlaku 15 menit). Kirim MASUK ke WhatsApp DOOZ untuk menerima link baru.'
+
 export default function MemberPortal({
   onBackToTryOn,
   onSelectFrameFromHistory,
@@ -270,7 +278,7 @@ export default function MemberPortal({
               offline_demo: true,
             })
           } else {
-            setErrorBanner(err.message)
+            setErrorBanner(EXPIRED_LINK_MESSAGE)
           }
         }
       })
@@ -300,10 +308,10 @@ export default function MemberPortal({
       await syncLocalEventsToHub(stored?.contact_id, { session_token: tokenToUse })
       const view = await fetchPortalMe(tokenToUse)
       setPortalView(view)
-    } catch (err) {
+    } catch {
       clearStoredPortalSession()
       setPortalView(null)
-      setErrorBanner(err.message)
+      setErrorBanner('Sesi Kartu Member sudah berakhir. Kirim MASUK ke WhatsApp DOOZ untuk menerima link baru.')
     } finally {
       setLoadingPortal(false)
     }
@@ -355,7 +363,7 @@ export default function MemberPortal({
         setUrlToken('')
         setMagicPreview(null)
         setPortalView(buildOfflineDemoView(isRecycled))
-        setStatusBanner('Sesi berhasil diaktifkan melalui konfirmasi tombol klik (POST).')
+        setStatusBanner('Kartu Member kamu sudah terbuka.')
         return
       }
 
@@ -364,9 +372,9 @@ export default function MemberPortal({
       setUrlToken('')
       setMagicPreview(null)
       await loadPortalSession(exchanged.session_token)
-      setStatusBanner('Sesi berhasil diaktifkan. Selamat datang di Portal Data Saya!')
-    } catch (err) {
-      setErrorBanner(err.message)
+      setStatusBanner('Kartu Member kamu sudah terbuka.')
+    } catch {
+      setErrorBanner(EXPIRED_LINK_MESSAGE)
     } finally {
       setExchanging(false)
     }
@@ -404,7 +412,7 @@ export default function MemberPortal({
   const handleConfirmRecycledSubmit = async (e) => {
     e.preventDefault()
     if (!recycledNameInput.trim()) {
-      setErrorBanner('Mohon ketik nama lengkap terdaftar Anda.')
+      setErrorBanner('Ketik nama lengkap kamu dulu ya.')
       return
     }
     setConfirmingRecycled(true)
@@ -416,21 +424,21 @@ export default function MemberPortal({
       if (sess?.session_token?.startsWith('demo-sess-')) {
         if (recycledNameInput.trim().toLowerCase() !== 'rina kartika') {
           throw new Error(
-            'Nama lengkap tidak cocok dengan profil terdaftar (Gunakan: Rina Kartika untuk simulasi).'
+            'Nama lengkap belum cocok (contoh uji: Rina Kartika).'
           )
         }
         const upgraded = { ...sess, session_token: 'demo-sess-full', access_scope: 'full', requires_name_confirm: false }
         setStoredPortalSession(upgraded)
         setPortalView(buildOfflineDemoView(false))
-        setStatusBanner('Verifikasi nama lengkap berhasil! Profil penuh telah dibuka.')
+        setStatusBanner('Terima kasih! Kartu Member kamu sudah terbuka penuh.')
         return
       }
 
       await confirmRecycledName(recycledNameInput.trim())
       await loadPortalSession()
-      setStatusBanner('Verifikasi nama lengkap berhasil! Profil penuh Anda kini aktif.')
-    } catch (err) {
-      setErrorBanner(err.message)
+      setStatusBanner('Terima kasih! Kartu Member kamu sudah terbuka penuh.')
+    } catch {
+      setErrorBanner('Nama lengkap belum cocok. Coba lagi, atau minta bantuan kasir di outlet DOOZ.')
     } finally {
       setConfirmingRecycled(false)
     }
@@ -442,11 +450,11 @@ export default function MemberPortal({
     const sess = getStoredPortalSession()
     if (sess?.session_token?.startsWith('demo-sess-')) {
       setPortalView(buildOfflineDemoView(false))
-      setStatusBanner('Token QR Dinamis berhasil diperbarui (rotasi otomatis 5 menit).')
+      setStatusBanner('QR sudah diperbarui.')
       return
     }
     await loadPortalSession()
-    setStatusBanner('Token QR Dinamis berhasil diperbarui.')
+    setStatusBanner('QR sudah diperbarui.')
   }
 
   // Revoke all sessions ("Keluar dari Semua Perangkat")
@@ -457,11 +465,11 @@ export default function MemberPortal({
       setPortalView(null)
       setUrlToken('')
       setStatusBanner(
-        `Berhasil keluar dari semua perangkat (${res?.revoked_sessions ?? 1} sesi dicabut).`
+        `Kamu sudah keluar dari semua perangkat (${res?.revoked_sessions ?? 1} perangkat).`
       )
     } catch (err) {
       setPortalView(null)
-      setStatusBanner('Seluruh sesi pada perangkat ini telah dihapus.')
+      setStatusBanner('Kamu sudah keluar dari HP ini.')
     }
   }
 
@@ -480,22 +488,14 @@ export default function MemberPortal({
         )
         return { ...prev, consents: updated }
       })
-      setStatusBanner(
-        nextGranted
-          ? `Persetujuan (${scope}) berhasil diaktifkan.`
-          : `Anda berhasil opt-out / mencabut persetujuan (${scope}) sesuai hak UU PDP.`
-      )
+      setStatusBanner(nextGranted ? 'Info promo lewat WhatsApp diaktifkan lagi.' : 'Kamu tidak akan menerima promo lewat WhatsApp lagi.')
       return
     }
 
     try {
       await updatePortalConsent(scope, nextGranted)
       await loadPortalSession()
-      setStatusBanner(
-        nextGranted
-          ? `Persetujuan (${scope}) berhasil diaktifkan kembali.`
-          : `Berhasil berhenti berlangganan / mencabut persetujuan (${scope}).`
-      )
+      setStatusBanner(nextGranted ? 'Info promo lewat WhatsApp diaktifkan lagi.' : 'Kamu tidak akan menerima promo lewat WhatsApp lagi.')
     } catch (err) {
       setErrorBanner(err.message)
     }
@@ -548,561 +548,453 @@ export default function MemberPortal({
   const waMasukUrl = `https://wa.me/${DEFAULT_OFFICIAL_WA}?text=${encodeURIComponent('MASUK')}`
   const waKeluarUrl = `https://wa.me/${DEFAULT_OFFICIAL_WA}?text=${encodeURIComponent('KELUAR')}`
 
+  const latest = portalView?.latest_measurement
+  const sizeCat = latest?.size_category || 'M'
+  const widthMm = latest?.frame_width_mm || 138
+
   return (
-    <div className="dooz-portal-wrapper">
-      <div className="dooz-portal-container">
-        {/* Top bar */}
-        <div className="dooz-portal-topbar">
-          <div>
-            <span className="dooz-chip">🔒 Tanpa Password • Referrer-Policy: no-referrer</span>
-            <h1 className="dooz-portal-title">Portal Member — Data Saya</h1>
-          </div>
-          {onBackToTryOn && (
-            <button type="button" className="dooz-btn-outline" onClick={onBackToTryOn}>
-              👓 Kembali ke Virtual Try-On
+    <div className="dz-page">
+      <AppHeader
+        subtitle="Kartu Member Saya"
+        actions={
+          onBackToTryOn && (
+            <button type="button" className="dz-header-link" onClick={onBackToTryOn}>
+              Coba kacamata
             </button>
+          )
+        }
+      />
+
+      <main className="dz-page__body">
+        <div className="dz-container dz-container--narrow dz-stack">
+          {statusBanner && (
+            <div className="dz-banner" role="status">
+              <span>✓ {statusBanner}</span>
+              <button type="button" onClick={() => setStatusBanner('')} aria-label="Tutup">
+                ✕
+              </button>
+            </div>
           )}
-        </div>
 
-        {statusBanner && (
-          <div className="dooz-status-banner">
-            <span>✓ {statusBanner}</span>
-            <button type="button" onClick={() => setStatusBanner('')}>✕</button>
-          </div>
-        )}
+          {errorBanner && (
+            <div className="dz-alert" role="alert">
+              {errorBanner}
+            </div>
+          )}
 
-        {errorBanner && (
-          <div className="dooz-error-alert">
-            <span>⚠ {errorBanner}</span>
-          </div>
-        )}
-
-        {deletedSuccess && (
-          <div className="dooz-card dooz-deleted-card">
-            <h2>🗑️ Permohonan Hapus Data Pribadi Selesai (UU PDP)</h2>
-            <p>
-              Seluruh profil kontak, riwayat ukuran frame, riwayat try-on, dan sesi aktif Anda telah dihapus secara permanen dari DOOZ Customer Hub.
-            </p>
-            <button
-              type="button"
-              className="dooz-btn-primary"
-              onClick={() => setDeletedSuccess(false)}
-            >
-              Kembali ke Halaman Masuk
-            </button>
-          </div>
-        )}
-
-        {/* STATE 1: Magic Link Confirmation Screen (`POST /api/auth/magic-exchange`) */}
-        {urlToken && !deletedSuccess && (
-          <div className="dooz-card dooz-magic-confirm-card">
-            <div className="magic-shield-icon">🔐</div>
-            <h2>Konfirmasi Akses Masuk "Data Saya"</h2>
-            <p className="magic-desc">
-              Demi keamanan akun Anda dari bot <em>link preview</em> WhatsApp, tautan sekali pakai ini hanya ditukar setelah Anda menekan tombol konfirmasi di bawah.
-            </p>
-
-            {magicChecking ? (
-              <div className="dooz-loading-box">Memeriksa keaslian tautan...</div>
-            ) : magicPreview ? (
-              <div className="magic-preview-summary">
-                <div className="magic-row">
-                  <span>ID Member:</span>
-                  <strong>{magicPreview.member_code}</strong>
-                </div>
-                <div className="magic-row">
-                  <span>Nama Terdaftar:</span>
-                  <strong>{magicPreview.first_name_masked}</strong>
-                </div>
-                {magicPreview.requires_name_confirm && (
-                  <div className="magic-recycled-badge">
-                    ⚠ Akun pasif &gt; 6 bulan: Konfirmasi nama lengkap diperlukan setelah masuk
-                  </div>
-                )}
-              </div>
-            ) : null}
-
-            <div className="magic-confirm-actions">
-              <button
-                type="button"
-                className="dooz-btn-primary dooz-btn-large"
-                onClick={handleConfirmMagicExchange}
-                disabled={exchanging}
-              >
-                {exchanging ? 'Mengaktifkan Sesi...' : '🔓 Buka Data Saya Sekarang (POST)'}
-              </button>
-              <button
-                type="button"
-                className="dooz-btn-secondary"
-                onClick={() => {
-                  stripTokenFromAddressBar()
-                  setUrlToken('')
-                  setMagicPreview(null)
-                }}
-              >
-                Batal
+          {deletedSuccess && (
+            <div className="dz-card">
+              <h2 className="dz-subtitle">Data kamu sudah dihapus</h2>
+              <p className="dz-muted" style={{ margin: '6px 0 14px' }}>
+                Profil, ukuran frame, riwayat coba kacamata, dan semua sesi masuk kamu sudah dihapus permanen.
+              </p>
+              <button type="button" className="dz-btn dz-btn--outline" onClick={() => setDeletedSuccess(false)}>
+                Tutup
               </button>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* STATE 2: Unauthenticated / Passwordless Login Landing */}
-        {!urlToken && !portalView && !loadingPortal && !deletedSuccess && (
-          <div className="dooz-portal-login-grid">
-            <div className="dooz-card">
-              <h2>💬 Masuk Tanpa Password via WhatsApp</h2>
-              <p className="portal-muted">
-                DOOZ tidak menggunakan password atau OTP yang rawan penipuan. Cukup kirim kata kunci{' '}
-                <strong>MASUK</strong> atau <strong>DATA</strong> dari nomor WhatsApp terdaftar Anda untuk menerima tautan masuk sekali pakai (berlaku 15 menit).
-              </p>
-
-              <div className="portal-wa-actions">
-                <a
-                  href={waMasukUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="dooz-wa-cta-button"
-                >
-                  💬 Ketik "MASUK" ke WA Resmi DOOZ
-                </a>
-                <a
-                  href={waKeluarUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="dooz-btn-outline"
-                >
-                  🛑 Darurat: Ketik "KELUAR" via WA
-                </a>
-              </div>
-
-              <form
-                className="portal-manual-token-form"
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  if (manualTokenInput.trim()) {
-                    setUrlToken(manualTokenInput.trim())
-                  }
-                }}
-              >
-                <label htmlFor="manual-magic-token">Sudah punya Token Magic Link?</label>
-                <div className="manual-token-row">
-                  <input
-                    id="manual-magic-token"
-                    type="text"
-                    placeholder="Tempel token magic link di sini..."
-                    value={manualTokenInput}
-                    onChange={(e) => setManualTokenInput(e.target.value)}
-                  />
-                  <button type="submit" className="dooz-btn-primary">
-                    Verifikasi Token
-                  </button>
-                </div>
-              </form>
-            </div>
-
-            <div className="dooz-card dooz-demo-sandbox-card">
-              <span className="dooz-chip">🧪 Mode Uji & Validasi Cepat</span>
-              <h3>Simulasi Alur Magic Link & Nomor Daur Ulang</h3>
-              <p className="portal-muted">
-                Gunakan tombol di bawah untuk membuat token <em>magic link</em> uji coba di Customer Hub lalu menguji halaman konfirmasi tombol klik (<code>POST /api/auth/magic-exchange</code>):
-              </p>
-              <div className="demo-btn-stack">
+          {/* 1. Link dari WhatsApp: konfirmasi dengan tombol (magic link ditukar lewat POST) */}
+          {urlToken && !deletedSuccess && (
+            <div className="dz-card">
+              <CornerBrackets />
+              <span className="dz-eyebrow">
+                <DoozLogogram size={11} /> Link dari WhatsApp
+              </span>
+              <h1 className="dz-title" style={{ margin: '6px 0' }}>
+                Buka Kartu Member Saya
+              </h1>
+              {magicChecking ? (
+                <p className="dz-muted">Memeriksa link...</p>
+              ) : magicPreview ? (
+                <p className="dz-muted">
+                  Kartu member atas nama <strong>{magicPreview.first_name_masked}</strong>.
+                  {magicPreview.requires_name_confirm && ' Setelah dibuka, kamu akan diminta mengetik nama lengkap.'}
+                </p>
+              ) : null}
+              <div className="dz-stack" style={{ marginTop: 16, gap: 10 }}>
                 <button
                   type="button"
-                  className="dooz-btn-primary"
-                  onClick={() => handleStartDemoFlow(false)}
+                  className="dz-btn dz-btn--orange dz-btn--lg dz-btn--block"
+                  onClick={handleConfirmMagicExchange}
+                  disabled={exchanging || magicChecking}
                 >
-                  ⚡ Simulasi Magic Link — Member Aktif (Profil Penuh)
+                  {exchanging ? 'Membuka...' : 'Buka Kartu Member'}
                 </button>
                 <button
                   type="button"
-                  className="dooz-btn-outline"
-                  onClick={() => handleStartDemoFlow(true)}
+                  className="dz-link dz-link--muted"
+                  style={{ alignSelf: 'center' }}
+                  onClick={() => {
+                    stripTokenFromAddressBar()
+                    setUrlToken('')
+                    setMagicPreview(null)
+                  }}
                 >
-                  🛡️ Simulasi Nomor WA Daur Ulang (&gt;6 Bulan Pasif)
+                  Batal
                 </button>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* STATE 3 & 4: Authenticated Member Portal View */}
-        {!urlToken && portalView && !deletedSuccess && (
-          <div className="dooz-portal-dashboard">
-            {/* Recycled Number (>6 months passive) Protection Gate */}
-            {portalView.requires_name_confirm ? (
-              <div className="dooz-card dooz-recycled-gate-card">
-                <div className="recycled-header">
-                  <span className="dooz-chip warning">🛡️ Proteksi Nomor Daur Ulang (&gt;6 Bulan Pasif)</span>
-                  <h2>Ringkasan Dasar Member {portalView.member_code}</h2>
-                  <p>
-                    Akun ini tercatat tidak aktif lebih dari 6 bulan. Untuk mencegah pemilik baru nomor seluler daur ulang mengakses riwayat pribadi, kami hanya menampilkan ringkasan dasar.
-                  </p>
-                </div>
+          {!urlToken && loadingPortal && <div className="dz-card dz-muted">Memuat Kartu Member...</div>}
 
-                <div className="recycled-basic-summary">
-                  <div className="basic-item">
-                    <span>ID Member</span>
-                    <strong>{portalView.member_code}</strong>
-                  </div>
-                  <div className="basic-item">
-                    <span>Inisial Nama</span>
-                    <strong>{portalView.first_name_masked}</strong>
-                  </div>
-                  <div className="basic-item">
-                    <span>Nomor WA Tersamar</span>
-                    <strong>{portalView.phone_masked}</strong>
-                  </div>
-                  <div className="basic-item">
-                    <span>Ukuran Frame Dasar</span>
-                    <strong>
-                      {portalView.latest_measurement
-                        ? `${portalView.latest_measurement.frame_width_mm} mm · Size ${portalView.latest_measurement.size_category}`
-                        : 'Belum ada data'}
-                    </strong>
-                  </div>
-                </div>
-
-                <form onSubmit={handleConfirmRecycledSubmit} className="recycled-confirm-form">
-                  <label htmlFor="confirm-registered-name">
-                    Konfirmasi Nama Lengkap Terdaftar untuk Membuka Profil Penuh:
-                  </label>
-                  <div className="manual-token-row">
-                    <input
-                      id="confirm-registered-name"
-                      type="text"
-                      placeholder="Ketik nama lengkap saat mendaftar (contoh: Rina Kartika)"
-                      value={recycledNameInput}
-                      onChange={(e) => setRecycledNameInput(e.target.value)}
-                      required
-                    />
-                    <button type="submit" className="dooz-btn-primary" disabled={confirmingRecycled}>
-                      {confirmingRecycled ? 'Memverifikasi...' : 'Buka Profil Penuh'}
-                    </button>
-                  </div>
-                  <small className="portal-muted">
-                    Atau kunjungi outlet DOOZ terdekat untuk verifikasi ulang secara langsung di kasir.
-                  </small>
-                </form>
-
-                <div className="recycled-footer">
-                  <button type="button" className="dooz-btn-danger-outline" onClick={handleRevokeAll}>
-                    🚪 Keluar dari Semua Perangkat
-                  </button>
-                </div>
-              </div>
-            ) : (
-              /* FULL PROFILE VIEW */
-              <>
-                <div className="dooz-portal-top-grid">
-                  {/* Dynamic Member QR Card */}
-                  <div className="dooz-card dooz-member-qr-card">
-                    <div className="qr-card-header">
-                      <div>
-                        <span className="qr-brand-tag">KARTU MEMBER DIGITAL DOOZ</span>
-                        <h2 className="qr-member-code">{portalView.member_code}</h2>
-                        <p className="qr-member-meta">
-                          {portalView.full_name} • {portalView.phone_masked}
-                        </p>
-                        {portalView.city_regency && (
-                          <span className="qr-city-pill">📍 {portalView.city_regency}</span>
-                        )}
-                      </div>
-                      <span className="qr-verified-badge">✓ WA Verified</span>
-                    </div>
-
-                    <div className="qr-visual-section">
-                      <div className="qr-svg-frame">
-                        <DynamicQRMatrixSVG token={portalView.qr_token} />
-                      </div>
-                      <div className="qr-token-details">
-                        <span className="qr-security-label">
-                          🔒 Signed Rotating Token (Kasir Level 2)
-                        </span>
-                        <p className="qr-security-note">
-                          Tunjukkan QR ini ke staf kasir outlet DOOZ untuk membuka profil penuh, klaim voucher, dan riwayat ukuran. Kode <code>{portalView.member_code}</code> hanya untuk label tampilan.
-                        </p>
-                        <div className="qr-timer-row">
-                          <span>Berotasi otomatis dalam:</span>
-                          <strong>
-                            {Math.floor(qrSecondsLeft / 60)}:
-                            {String(qrSecondsLeft % 60).padStart(2, '0')}
-                          </strong>
-                        </div>
-                        <div className="qr-token-preview" title={portalView.qr_token}>
-                          <code>{portalView.qr_token ? `${portalView.qr_token.slice(0, 28)}...` : 'DQR1...'}</code>
-                        </div>
-                        <button
-                          type="button"
-                          className="dooz-btn-secondary qr-refresh-btn"
-                          onClick={handleRefreshQRToken}
-                        >
-                          🔄 Perbarui QR Token Sekarang
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Frame Size Summary (`mm` & Category XS-XL) */}
-                  <div className="dooz-card dooz-size-summary-card">
-                    <div className="card-title-row">
-                      <h3>📏 Ukuran Frame Saya</h3>
-                      <span className="size-badge-large">
-                        Kategori {portalView.latest_measurement?.size_category || 'M'}
-                      </span>
-                    </div>
-
-                    <div className="size-metrics-row">
-                      <div className="size-metric-box">
-                        <span>Lebar Frame / Wajah</span>
-                        <strong>
-                          {portalView.latest_measurement?.frame_width_mm
-                            ? `${portalView.latest_measurement.frame_width_mm} mm`
-                            : '138 mm'}
-                        </strong>
-                      </div>
-                      <div className="size-metric-box">
-                        <span>Bridge (Jembatan Hidung)</span>
-                        <strong>
-                          {portalView.latest_measurement?.bridge_mm
-                            ? `${portalView.latest_measurement.bridge_mm} mm`
-                            : '18 mm'}
-                        </strong>
-                      </div>
-                      <div className="size-metric-box">
-                        <span>Temple (Panjang Tangkai)</span>
-                        <strong>
-                          {portalView.latest_measurement?.temple_mm
-                            ? `${portalView.latest_measurement.temple_mm} mm`
-                            : '142 mm'}
-                        </strong>
-                      </div>
-                    </div>
-
-                    <div className="size-scale-table">
-                      <span className="scale-caption">Panduan Standar Ukuran Katalog DOOZ (XS–XL):</span>
-                      <div className="scale-pills">
-                        {SIZE_CHART_DEFAULT.map((item) => {
-                          const isCurrent =
-                            (portalView.latest_measurement?.size_category || 'M') === item.category
-                          return (
-                            <div
-                              key={item.category}
-                              className={`scale-pill ${isCurrent ? 'active' : ''}`}
-                            >
-                              <strong>{item.category}</strong>
-                              <span>
-                                {item.min_mm}–{item.max_mm} mm
-                              </span>
-                            </div>
-                          )
-                        })}
-                      </div>
-                      {(onApplyCustomerSizeFilter || onBackToTryOn) && (
-                        <button
-                          type="button"
-                          className="dooz-btn-primary"
-                          style={{ marginTop: '10px', width: '100%' }}
-                          onClick={() => {
-                            if (onApplyCustomerSizeFilter) {
-                              onApplyCustomerSizeFilter({
-                                sizeCategory: portalView.latest_measurement?.size_category || 'M',
-                                widthMm: portalView.latest_measurement?.frame_width_mm || 138,
-                              })
-                            } else if (onBackToTryOn) {
-                              onBackToTryOn()
-                            }
-                          }}
-                        >
-                          🎯 Filter Otomatis Size {portalView.latest_measurement?.size_category || 'M'} di Virtual Try-On →
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Middle Grid: Tried Frames History, Active Vouchers, Outlet Visits */}
-                <div className="dooz-portal-middle-grid">
-                  {/* Tried Frames History */}
-                  <div className="dooz-card">
-                    <h3>👓 Riwayat Frame yang Dicoba (Try-On & Outlet)</h3>
-                    {mergedTriedFrames.length > 0 ? (
-                      <ul className="portal-item-list">
-                        {mergedTriedFrames.map((ev) => (
-                          <li key={ev.id} className="portal-item">
-                            <div>
-                              <strong>{ev.payload?.frame_name || ev.payload?.frame_sku || 'Frame DOOZ'}</strong>
-                              <span className="item-sub">
-                                SKU: {ev.payload?.frame_sku || '-'} •{' '}
-                                {ev.payload?.frame_width_mm ? `${ev.payload.frame_width_mm} mm` : ''}{' '}
-                                {ev.payload?.size_category ? `(${ev.payload.size_category})` : ''} • Kanal:{' '}
-                                {ev.src || 'tryon'}
-                              </span>
-                            </div>
-                            {onSelectFrameFromHistory && (
-                              <button
-                                type="button"
-                                className="dooz-btn-outline btn-sm"
-                                onClick={() => onSelectFrameFromHistory(ev.payload)}
-                              >
-                                Coba Lagi →
-                              </button>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="portal-empty">Belum ada riwayat frame yang dicoba.</p>
-                    )}
-                  </div>
-
-                  {/* Active Vouchers */}
-                  <div className="dooz-card">
-                    <h3>🎟️ Voucher Aktif Saya</h3>
-                    {portalView.vouchers && portalView.vouchers.length > 0 ? (
-                      <ul className="portal-item-list">
-                        {portalView.vouchers.map((v) => (
-                          <li key={v.id} className="portal-item voucher-item">
-                            <div>
-                              <strong className="voucher-code">
-                                {v.payload?.voucher_code || 'DOOZ-MEMBER-VOUCHER'}
-                              </strong>
-                              <span className="item-sub">
-                                {v.payload?.notes || 'Tunjukkan Kartu Member QR Dinamis di Kasir Outlet DOOZ'}
-                              </span>
-                            </div>
-                            {v.payload?.amount_idr ? (
-                              <span className="voucher-amount">
-                                Rp {Number(v.payload.amount_idr).toLocaleString('id-ID')}
-                              </span>
-                            ) : (
-                              <span className="voucher-amount">Aktif</span>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <div className="voucher-default-card">
-                        <strong>MEMBER-WELCOME-50K</strong>
-                        <p>Tunjukkan QR Member Dinamis Anda di kasir outlet DOOZ untuk klaim voucher member baru.</p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Store Visits History */}
-                  <div className="dooz-card">
-                    <h3>🏪 Riwayat Kunjungan Outlet DOOZ</h3>
-                    {portalView.store_visits && portalView.store_visits.length > 0 ? (
-                      <ul className="portal-item-list">
-                        {portalView.store_visits.map((visit) => (
-                          <li key={visit.id} className="portal-item">
-                            <div>
-                              <strong>{visit.payload?.outlet_id || 'Outlet DOOZ Optik'}</strong>
-                              <span className="item-sub">
-                                {visit.payload?.notes || 'Kunjungan & konsultasi optik'}
-                              </span>
-                            </div>
-                            <span className="item-date">
-                              {visit.created_at
-                                ? new Date(visit.created_at).toLocaleDateString('id-ID', {
-                                    day: '2-digit',
-                                    month: 'short',
-                                    year: 'numeric',
-                                  })
-                                : '-'}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="portal-empty">Belum ada catatan kunjungan cabang.</p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Bottom Card: Session Security & UU PDP Privacy Controls */}
-                <div className="dooz-card dooz-privacy-card">
-                  <div className="privacy-header">
-                    <div>
-                      <span className="dooz-chip">⚖️ Kepatuhan UU PDP & Keamanan Sesi</span>
-                      <h3>Kendali Privasi Mandiri & Perangkat Aktif</h3>
-                    </div>
+          {/* 2. Belum masuk: minta link baru lewat WhatsApp */}
+          {!urlToken && !portalView && !loadingPortal && !deletedSuccess && (
+            <>
+              <div className="dz-card">
+                <CornerBrackets />
+                <span className="dz-eyebrow">
+                  <DoozLogogram size={11} /> Kartu Member Saya
+                </span>
+                <h1 className="dz-title" style={{ margin: '6px 0' }}>
+                  Buka lewat WhatsApp
+                </h1>
+                <p className="dz-muted">
+                  Link Kartu Member dikirim lewat WhatsApp setelah kamu menyimpan pilihan frame. Sudah pernah
+                  menyimpan? Kirim pesan <strong>MASUK</strong> untuk menerima link baru.
+                </p>
+                <div className="dz-stack" style={{ marginTop: 16, gap: 10 }}>
+                  <a
+                    href={waMasukUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="dz-btn dz-btn--wa dz-btn--lg dz-btn--block"
+                  >
+                    Minta link lewat WhatsApp
+                  </a>
+                  {onBackToTryOn && (
                     <button
                       type="button"
-                      className="dooz-btn-danger-outline"
-                      onClick={handleRevokeAll}
+                      className="dz-link"
+                      style={{ alignSelf: 'center' }}
+                      onClick={onBackToTryOn}
                     >
-                      🚪 Keluar dari Semua Perangkat
+                      Belum punya? Coba kacamata dulu
+                    </button>
+                  )}
+                </div>
+              </div>
+              <p className="dz-small" style={{ textAlign: 'center' }}>
+                HP hilang? Kirim{' '}
+                <a href={waKeluarUrl} target="_blank" rel="noopener noreferrer" className="dz-link dz-link--muted">
+                  KELUAR
+                </a>{' '}
+                dari nomor kamu untuk menutup Kartu Member di semua perangkat.
+              </p>
+
+              {SHOW_DEV_DEMO && (
+                <div className="dz-card dz-card--plain">
+                  <span className="dz-chip dz-chip--warning">Mode dev</span>
+                  <p className="dz-muted" style={{ margin: '8px 0' }}>
+                    Simulasi link WhatsApp (hanya tampil saat <code>npm run dev</code>).
+                  </p>
+                  <div className="dz-row">
+                    <button type="button" className="dz-btn dz-btn--outline dz-btn--sm" onClick={() => handleStartDemoFlow(false)}>
+                      Member aktif
+                    </button>
+                    <button type="button" className="dz-btn dz-btn--outline dz-btn--sm" onClick={() => handleStartDemoFlow(true)}>
+                      Nomor lama &gt;6 bulan
                     </button>
                   </div>
+                  <form
+                    className="manual-token-row"
+                    style={{ marginTop: 10 }}
+                    onSubmit={(e) => {
+                      e.preventDefault()
+                      if (manualTokenInput.trim()) setUrlToken(manualTokenInput.trim())
+                    }}
+                  >
+                    <input
+                      className="dz-input"
+                      type="text"
+                      placeholder="Token link"
+                      value={manualTokenInput}
+                      onChange={(e) => setManualTokenInput(e.target.value)}
+                    />
+                    <button type="submit" className="dz-btn dz-btn--outline dz-btn--sm">
+                      Buka
+                    </button>
+                  </form>
+                </div>
+              )}
+            </>
+          )}
 
-                  <div className="privacy-controls-grid">
-                    <div className="privacy-control-box">
-                      <div>
-                        <strong>Persetujuan Pesan Promo & Info Voucher WhatsApp (`crm_wa`)</strong>
-                        <p>
-                          Status saat ini:{' '}
-                          <span className={crmConsentGranted ? 'status-on' : 'status-off'}>
-                            {crmConsentGranted ? 'Aktif (Disetujui)' : 'Nonaktif (Opt-Out)'}
-                          </span>
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        className="dooz-btn-secondary"
-                        onClick={() => handleToggleConsent('crm_wa', crmConsentGranted)}
-                      >
-                        {crmConsentGranted
-                          ? '🔕 Berhenti Terima Promo (Opt-Out)'
-                          : '🔔 Aktifkan Kembali Promo WA'}
-                      </button>
+          {/* 3. Nomor tidak aktif >6 bulan: tampil ringkas sampai nama lengkap dikonfirmasi */}
+          {!urlToken && portalView && !deletedSuccess && portalView.requires_name_confirm && (
+            <div className="dz-card">
+              <CornerBrackets />
+              <span className="dz-eyebrow">
+                <DoozLogogram size={11} /> Kartu Member {portalView.member_code}
+              </span>
+              <h1 className="dz-title" style={{ margin: '6px 0' }}>
+                Konfirmasi nama kamu
+              </h1>
+              <p className="dz-muted">
+                Nomor ini lama tidak dipakai. Demi keamanan, ketik nama lengkap yang kamu daftarkan untuk membuka
+                Kartu Member.
+              </p>
+              <div className="dz-kv">
+                <div className="dz-kv__item">
+                  <span>Nama</span>
+                  <strong>{portalView.first_name_masked}</strong>
+                </div>
+                <div className="dz-kv__item">
+                  <span>WhatsApp</span>
+                  <strong>{portalView.phone_masked}</strong>
+                </div>
+              </div>
+              <form onSubmit={handleConfirmRecycledSubmit} className="dz-form">
+                <div className="dz-field">
+                  <label htmlFor="confirm-registered-name">Nama lengkap</label>
+                  <input
+                    id="confirm-registered-name"
+                    className="dz-input"
+                    type="text"
+                    autoComplete="name"
+                    value={recycledNameInput}
+                    onChange={(e) => setRecycledNameInput(e.target.value)}
+                    required
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="dz-btn dz-btn--orange dz-btn--lg dz-btn--block"
+                  disabled={confirmingRecycled}
+                >
+                  {confirmingRecycled ? 'Memeriksa...' : 'Buka Kartu Member'}
+                </button>
+                <p className="dz-small">Atau datang ke outlet DOOZ terdekat, kasir akan membantu.</p>
+              </form>
+              <div style={{ marginTop: 12 }}>
+                <button type="button" className="dz-link dz-link--muted" onClick={handleRevokeAll}>
+                  Keluar dari semua perangkat
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* 4. Kartu Member lengkap */}
+          {!urlToken && portalView && !deletedSuccess && !portalView.requires_name_confirm && (
+            <>
+              <section className="member-card" aria-label="Kartu Member DOOZ">
+                <div className="member-card__top">
+                  <div>
+                    <DoozWordmark variant="reverse" height={22} clearSpace={false} />
+                    <div className="member-card__code">{portalView.member_code}</div>
+                    <div className="member-card__meta">
+                      {portalView.full_name} · {portalView.phone_masked}
                     </div>
+                  </div>
+                  <span className="dz-chip dz-chip--orange">Member</span>
+                </div>
+                <div className="member-card__qr">
+                  <DynamicQRMatrixSVG token={portalView.qr_token} />
+                  <strong style={{ fontSize: 14 }}>Tunjukkan QR ini ke kasir DOOZ</strong>
+                  <span className="member-card__timer">
+                    QR diperbarui otomatis dalam {Math.floor(qrSecondsLeft / 60)}:
+                    {String(qrSecondsLeft % 60).padStart(2, '0')} ·{' '}
+                    <button type="button" className="dz-link dz-link--muted" onClick={handleRefreshQRToken}>
+                      Perbarui sekarang
+                    </button>
+                  </span>
+                </div>
+              </section>
 
-                    <div className="privacy-control-box">
-                      <div>
-                        <strong>Hak Penghapusan Data Pribadi (UU PDP)</strong>
-                        <p>
-                          Anda berhak mengajukan penghapusan seluruh data profil, ukuran frame, dan riwayat try-on kapan saja. Data tidak aktif &gt;24 bulan tanpa transaksi juga dihapus otomatis.
-                        </p>
-                      </div>
-                      {!showDeleteConfirm ? (
-                        <button
-                          type="button"
-                          className="dooz-btn-danger-outline"
-                          onClick={() => setShowDeleteConfirm(true)}
-                        >
-                          🗑️ Ajukan Hapus Data Saya
-                        </button>
-                      ) : (
-                        <div className="delete-confirm-inline">
-                          <span>Yakin hapus permanen seluruh data & cabut semua sesi?</span>
-                          <div className="delete-confirm-btns">
-                            <button
-                              type="button"
-                              className="dooz-btn-danger"
-                              onClick={handleConfirmDeleteData}
-                              disabled={deletingData}
-                            >
-                              {deletingData ? 'Menghapus...' : 'Ya, Hapus Permanen'}
-                            </button>
-                            <button
-                              type="button"
-                              className="dooz-btn-secondary"
-                              onClick={() => setShowDeleteConfirm(false)}
-                            >
-                              Batal
-                            </button>
-                          </div>
-                        </div>
-                      )}
+              <div className="dz-card">
+                <span className="dz-eyebrow">Ukuran frame saya</span>
+                <div className="dz-size-row" style={{ margin: '10px 0 12px' }}>
+                  <span className="dz-size-badge">{sizeCat}</span>
+                  <div>
+                    <div className="dz-size-row__mm">{widthMm} mm</div>
+                    <div className="dz-small">
+                      Jembatan hidung {latest?.bridge_mm || 18} mm · Gagang {latest?.temple_mm || 142} mm
                     </div>
                   </div>
                 </div>
-              </>
-            )}
-          </div>
-        )}
-      </div>
+                <div className="dz-scale" aria-label="Panduan ukuran XS sampai XL">
+                  {SIZE_CHART_DEFAULT.map((item) => (
+                    <div key={item.category} className={`dz-scale__item ${sizeCat === item.category ? 'is-active' : ''}`}>
+                      <strong>{item.category}</strong>
+                      <span>
+                        {item.min_mm}–{item.max_mm}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                {(onApplyCustomerSizeFilter || onBackToTryOn) && (
+                  <button
+                    type="button"
+                    className="dz-btn dz-btn--outline dz-btn--block"
+                    style={{ marginTop: 14 }}
+                    onClick={() => {
+                      if (onApplyCustomerSizeFilter) {
+                        onApplyCustomerSizeFilter({ sizeCategory: sizeCat, widthMm })
+                      } else {
+                        onBackToTryOn()
+                      }
+                    }}
+                  >
+                    Coba frame ukuran {sizeCat}
+                  </button>
+                )}
+              </div>
+
+              <div className="dz-card">
+                <h2 className="dz-subtitle" style={{ marginBottom: 10 }}>
+                  Voucher saya
+                </h2>
+                {portalView.vouchers && portalView.vouchers.length > 0 ? (
+                  <ul className="dz-list">
+                    {portalView.vouchers.map((v) => (
+                      <li key={v.id} className="dz-list-item">
+                        <div>
+                          <strong className="voucher-code">{v.payload?.voucher_code || 'VOUCHER MEMBER'}</strong>
+                          <span className="item-sub">{v.payload?.notes || 'Tunjukkan Kartu Member di kasir DOOZ'}</span>
+                        </div>
+                        <span className="voucher-amount">
+                          {v.payload?.amount_idr ? `Rp ${Number(v.payload.amount_idr).toLocaleString('id-ID')}` : 'Aktif'}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="portal-empty">
+                    Tunjukkan Kartu Member di kasir DOOZ untuk klaim voucher member baru.
+                  </p>
+                )}
+              </div>
+
+              <div className="dz-card">
+                <h2 className="dz-subtitle" style={{ marginBottom: 10 }}>
+                  Frame yang pernah saya coba
+                </h2>
+                {mergedTriedFrames.length > 0 ? (
+                  <ul className="dz-list">
+                    {mergedTriedFrames.map((ev) => (
+                      <li key={ev.id} className="dz-list-item">
+                        <div>
+                          <strong>{ev.payload?.frame_name || ev.payload?.frame_sku || 'Frame DOOZ'}</strong>
+                          <span className="item-sub">
+                            {ev.payload?.frame_width_mm ? `${ev.payload.frame_width_mm} mm` : ''}
+                            {ev.payload?.size_category ? ` · Ukuran ${ev.payload.size_category}` : ''}
+                          </span>
+                        </div>
+                        {onSelectFrameFromHistory && (
+                          <button
+                            type="button"
+                            className="dz-btn dz-btn--outline dz-btn--sm"
+                            onClick={() => onSelectFrameFromHistory(ev.payload)}
+                          >
+                            Coba lagi
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="portal-empty">Belum ada frame yang dicoba.</p>
+                )}
+              </div>
+
+              {portalView.store_visits && portalView.store_visits.length > 0 && (
+                <div className="dz-card">
+                  <h2 className="dz-subtitle" style={{ marginBottom: 10 }}>
+                    Kunjungan ke outlet
+                  </h2>
+                  <ul className="dz-list">
+                    {portalView.store_visits.map((visit) => (
+                      <li key={visit.id} className="dz-list-item">
+                        <div>
+                          <strong>{visit.payload?.outlet_id || 'Outlet DOOZ'}</strong>
+                          <span className="item-sub">{visit.payload?.notes || 'Kunjungan outlet'}</span>
+                        </div>
+                        <span className="item-date">
+                          {visit.created_at
+                            ? new Date(visit.created_at).toLocaleDateString('id-ID', {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric',
+                              })
+                            : '-'}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Privasi (UU PDP): promo WA, hapus data, keluar dari semua perangkat */}
+              <div className="dz-card dz-card--plain">
+                <h2 className="dz-subtitle" style={{ marginBottom: 4 }}>
+                  Privasi & data
+                </h2>
+                <div className="dz-toggle-row">
+                  <div>
+                    <strong style={{ fontSize: 14 }}>Info promo lewat WhatsApp</strong>
+                    <p>
+                      Sekarang:{' '}
+                      <span className={crmConsentGranted ? 'status-on' : 'status-off'}>
+                        {crmConsentGranted ? 'Aktif' : 'Nonaktif'}
+                      </span>
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="dz-btn dz-btn--outline dz-btn--sm"
+                    onClick={() => handleToggleConsent('crm_wa', crmConsentGranted)}
+                  >
+                    {crmConsentGranted ? 'Berhenti terima promo' : 'Aktifkan lagi'}
+                  </button>
+                </div>
+                <div className="dz-toggle-row">
+                  <div>
+                    <strong style={{ fontSize: 14 }}>Keluar dari semua perangkat</strong>
+                    <p>Tutup Kartu Member di semua HP yang pernah membukanya.</p>
+                  </div>
+                  <button type="button" className="dz-btn dz-btn--outline dz-btn--sm" onClick={handleRevokeAll}>
+                    Keluar
+                  </button>
+                </div>
+                <div className="dz-toggle-row">
+                  <div>
+                    <strong style={{ fontSize: 14 }}>Hapus data saya</strong>
+                    <p>Hapus profil, ukuran frame, dan riwayat kamu secara permanen.</p>
+                  </div>
+                  {!showDeleteConfirm ? (
+                    <button
+                      type="button"
+                      className="dz-btn dz-btn--danger-outline dz-btn--sm"
+                      onClick={() => setShowDeleteConfirm(true)}
+                    >
+                      Hapus data
+                    </button>
+                  ) : (
+                    <div className="dz-row">
+                      <button
+                        type="button"
+                        className="dz-btn dz-btn--danger dz-btn--sm"
+                        onClick={handleConfirmDeleteData}
+                        disabled={deletingData}
+                      >
+                        {deletingData ? 'Menghapus...' : 'Ya, hapus permanen'}
+                      </button>
+                      <button
+                        type="button"
+                        className="dz-btn dz-btn--ghost dz-btn--sm"
+                        onClick={() => setShowDeleteConfirm(false)}
+                      >
+                        Batal
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </main>
     </div>
   )
 }

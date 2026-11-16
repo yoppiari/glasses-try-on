@@ -25,16 +25,6 @@ func (s *Server) handleServeCaptureSDK(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte(`window.DoozCaptureSDK = window.DoozCaptureSDK || { version: "1.0.0" };`))
 }
 
-// handlePortalWebPage serves the Passwordless Member Portal ("Data Saya") HTML page at `/data-saya`
-// with strict `Referrer-Policy: no-referrer` so one-time magic link tokens never leak via Referer headers.
-func (s *Server) handlePortalWebPage(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Referrer-Policy", "no-referrer")
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(portalStandaloneHTML))
-}
-
 // handlePortalDemoMagicLink seeds a verified demo member (with frame size, try-on history, outlet visit, and active voucher)
 // and issues a one-time MagicLink token so interactive testers can exercise `POST /api/auth/magic-exchange` and recycled-number confirmation.
 func (s *Server) handlePortalDemoMagicLink(w http.ResponseWriter, r *http.Request) {
@@ -125,31 +115,6 @@ func (s *Server) handlePortalDemoMagicLink(w http.ResponseWriter, r *http.Reques
 		"magic_token":           ml.Token,
 		"member_code":           contact.MemberCode,
 		"requires_name_confirm": ml.RequiresNameConfirm,
-		"portal_url":            fmt.Sprintf("/data-saya?token=%s", ml.Token),
+		"portal_url":            fmt.Sprintf("%s?token=%s", RouteKartuMember, ml.Token),
 	})
 }
-
-const portalStandaloneHTML = `<!DOCTYPE html>
-<html lang="id">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="referrer" content="no-referrer" />
-  <title>Portal Member ("Data Saya") — Kacamata DOOZ</title>
-  <style>
-    body { font-family: system-ui, -apple-system, sans-serif; background: #0a0a0a; color: #fff; margin: 0; padding: 24px; }
-    .card { max-width: 680px; margin: 0 auto 18px; background: #14151f; border: 1px solid rgba(255,255,255,0.12); border-radius: 16px; padding: 22px; }
-    .btn { background: #6366f1; color: #fff; border: none; border-radius: 10px; padding: 12px 18px; font-weight: 600; cursor: pointer; }
-    .btn-danger { background: rgba(239,68,68,0.2); color: #fca5a5; border: 1px solid rgba(239,68,68,0.4); }
-    code { background: rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 4px; }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <h1>Portal Member ("Data Saya") — DOOZ Optik</h1>
-    <p>Akses tanpa password menggunakan Magic Link sekali pakai (POST exchange) &amp; Kartu Member QR Dinamis (<code>DQR1...</code>).</p>
-    <div id="portal-app">Memuat Portal Data Saya...</div>
-  </div>
-  <script src="/sdk/dooz-capture.js"></script>
-</body>
-</html>`

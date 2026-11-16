@@ -10,18 +10,18 @@ import (
 )
 
 type ConversionBucket struct {
-	Key              string  `json:"key"`
-	Label            string  `json:"label,omitempty"`
-	TotalLeads       int     `json:"total_leads"`
-	VerifiedLeads    int     `json:"verified_leads"`
-	PendingLeads     int     `json:"pending_leads"`
-	UnverifiedLeads  int     `json:"unverified_leads"`
-	ConversionRate   float64 `json:"conversion_rate_pct"`
-	TotalEvents      int     `json:"total_events"`
-	FramesMeasured   int     `json:"frames_measured"`
-	FramesTried      int     `json:"frames_tried"`
-	StoreVisits      int     `json:"store_visits"`
-	VouchersClaimed  int     `json:"vouchers_claimed"`
+	Key             string  `json:"key"`
+	Label           string  `json:"label,omitempty"`
+	TotalLeads      int     `json:"total_leads"`
+	VerifiedLeads   int     `json:"verified_leads"`
+	PendingLeads    int     `json:"pending_leads"`
+	UnverifiedLeads int     `json:"unverified_leads"`
+	ConversionRate  float64 `json:"conversion_rate_pct"`
+	TotalEvents     int     `json:"total_events"`
+	FramesMeasured  int     `json:"frames_measured"`
+	FramesTried     int     `json:"frames_tried"`
+	StoreVisits     int     `json:"store_visits"`
+	VouchersClaimed int     `json:"vouchers_claimed"`
 }
 
 type AdminDashboardSummary struct {
@@ -62,15 +62,15 @@ type LiveCounterToast struct {
 }
 
 type LiveCounterResponse struct {
-	OK               bool               `json:"ok"`
-	SessionFilter    string             `json:"session_filter,omitempty"`
-	HostFilter       string             `json:"host_filter,omitempty"`
-	TotalLeads       int                `json:"total_leads"`
-	VerifiedLeads    int                `json:"verified_leads"`
-	TotalEvents      int                `json:"total_events"`
-	SizeBreakdown    map[string]int     `json:"size_breakdown"`
-	RecentToasts     []LiveCounterToast `json:"recent_toasts"`
-	UpdatedAt        time.Time          `json:"updated_at"`
+	OK            bool               `json:"ok"`
+	SessionFilter string             `json:"session_filter,omitempty"`
+	HostFilter    string             `json:"host_filter,omitempty"`
+	TotalLeads    int                `json:"total_leads"`
+	VerifiedLeads int                `json:"verified_leads"`
+	TotalEvents   int                `json:"total_events"`
+	SizeBreakdown map[string]int     `json:"size_breakdown"`
+	RecentToasts  []LiveCounterToast `json:"recent_toasts"`
+	UpdatedAt     time.Time          `json:"updated_at"`
 }
 
 // GetAdminDashboardStats computes conversion & verification analytics by source, host, session, and city/regency.
@@ -646,30 +646,36 @@ func (s *Server) handleKasirDemoMemberQR(w http.ResponseWriter, r *http.Request)
 
 func (s *Server) handleLiveCounterWebPage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-cache")
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(`<!doctype html>
+	_, _ = w.Write([]byte(liveCounterOverlayHTML))
+}
+
+// liveCounterOverlayHTML adalah overlay OBS Live tanpa build web (latar transparan, nama tersamar R***).
+const liveCounterOverlayHTML = `<!doctype html>
 <html lang="id">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>DOOZ OBS Live Counter — Overlay Privasi Aman</title>
+  <meta name="referrer" content="no-referrer" />
+  <title>Overlay Live — Kacamata DOOZ</title>
   <style>
-    body { margin: 0; padding: 16px; background: transparent; color: #fff; font-family: 'Inter', system-ui, sans-serif; }
-    .widget { max-width: 420px; background: rgba(10,12,20,0.86); border: 1px solid rgba(251,146,60,0.45); border-radius: 16px; padding: 14px 16px; box-shadow: 0 12px 32px rgba(0,0,0,0.55); }
-    .badge { font-size: 11px; font-weight: 800; color: #fb923c; text-transform: uppercase; letter-spacing: 0.08em; }
+    body { margin: 0; padding: 16px; background: transparent; color: #fff; font-family: Inter, system-ui, sans-serif; }
+    .widget { max-width: 420px; background: rgba(37,42,45,0.92); border: 2px solid #EC6702; border-radius: 16px; padding: 14px 16px; }
+    .badge { font-size: 11px; font-weight: 800; color: #EC6702; text-transform: uppercase; letter-spacing: 0.12em; }
     .counter-row { display: flex; align-items: baseline; gap: 12px; margin: 6px 0 10px; }
-    .big-num { font-size: 36px; font-weight: 900; color: #4ade80; }
-    .toast { padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,0.06); margin-top: 6px; font-size: 13px; }
+    .big-num { font-size: 40px; font-weight: 800; color: #fff; }
+    .toast { padding: 8px 10px; border-radius: 10px; background: rgba(255,248,240,0.08); margin-top: 6px; font-size: 13px; }
   </style>
 </head>
 <body>
   <div class="widget">
-    <div class="badge">● DOOZ LIVE COUNTER (PRIVASI AMAN — MASKED)</div>
+    <div class="badge">● LIVE Kacamata DOOZ</div>
     <div class="counter-row">
       <span class="big-num" id="total-leads">0</span>
-      <span>Penonton Ukur Frame &amp; Try-On</span>
+      <span>penonton sudah ukur &amp; coba frame</span>
     </div>
-    <div id="toast-list">Memuat aktivitas live...</div>
+    <div id="toast-list">Menunggu penonton...</div>
   </div>
   <script>
     async function refresh() {
@@ -678,12 +684,21 @@ func (s *Server) handleLiveCounterWebPage(w http.ResponseWriter, r *http.Request
         const data = await res.json();
         document.getElementById('total-leads').textContent = data.total_leads || 0;
         const list = document.getElementById('toast-list');
-        list.innerHTML = (data.recent_toasts || []).slice(0, 4).map(t => '<div class="toast">✨ ' + t.message + '</div>').join('') || '<div class="toast">Menunggu aktivitas penonton...</div>';
+        list.innerHTML = '';
+        const toasts = (data.recent_toasts || []).slice(0, 4);
+        if (toasts.length === 0) {
+          list.textContent = 'Menunggu penonton...';
+        }
+        toasts.forEach(function (t) {
+          const el = document.createElement('div');
+          el.className = 'toast';
+          el.textContent = t.message;
+          list.appendChild(el);
+        });
       } catch (e) {}
     }
     refresh();
     setInterval(refresh, 4000);
   </script>
 </body>
-</html>`))
-}
+</html>`

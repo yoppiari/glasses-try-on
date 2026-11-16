@@ -68,7 +68,7 @@ export function estimateFaceWidth(landmarks) {
 export function calculateFitConfidence(landmarks, product) {
     if (!landmarks || !product || !product.frameWidth) {
         return {
-            fitLabel: 'Unable to determine',
+            fitLabel: 'Belum terbaca',
             fitScore: 0,
             recommendation: null,
             faceWidth: null
@@ -79,7 +79,7 @@ export function calculateFitConfidence(landmarks, product) {
 
     if (!faceWidth) {
         return {
-            fitLabel: 'Measuring...',
+            fitLabel: 'Mengukur...',
             fitScore: 0,
             recommendation: null,
             faceWidth: null
@@ -94,34 +94,34 @@ export function calculateFitConfidence(landmarks, product) {
 
     if (Math.abs(difference) <= 5) {
         // Perfect match
-        fitLabel = 'Perfect Fit'
+        fitLabel = 'Pas sekali'
         fitScore = 100
         recommendation = 'These frames match your face width perfectly!'
     } else if (Math.abs(difference) <= 10) {
         // Good fit
-        fitLabel = 'Good Fit'
+        fitLabel = 'Pas'
         fitScore = 85
         recommendation = difference > 0
             ? 'Slightly wider than your face - comfortable fit'
             : 'Slightly narrower - snug fit'
     } else if (difference > 10 && difference <= 20) {
         // Frame is larger
-        fitLabel = 'Slightly Large'
+        fitLabel = 'Sedikit besar'
         fitScore = 65
         recommendation = 'These frames may feel loose on your face'
     } else if (difference < -10 && difference >= -20) {
         // Frame is smaller
-        fitLabel = 'Slightly Small'
+        fitLabel = 'Sedikit kecil'
         fitScore = 65
         recommendation = 'These frames may feel tight on your face'
     } else if (difference > 20) {
         // Too large
-        fitLabel = 'May Be Too Large'
+        fitLabel = 'Kebesaran'
         fitScore = 40
         recommendation = 'Consider a smaller frame size'
     } else {
         // Too small
-        fitLabel = 'May Be Too Small'
+        fitLabel = 'Kekecilan'
         fitScore = 40
         recommendation = 'Consider a larger frame size'
     }
@@ -149,9 +149,9 @@ export function calculateFitConfidence(landmarks, product) {
  * @returns {string} CSS color value
  */
 export function getFitColor(fitScore) {
-    if (fitScore >= 85) return '#22c55e'  // Green - great fit
-    if (fitScore >= 65) return '#eab308'  // Yellow - okay fit
-    return '#ef4444'  // Red - poor fit
+    if (fitScore >= 85) return '#1F7A4D'  // Green - great fit
+    if (fitScore >= 65) return '#8A5A00'  // Amber - okay fit
+    return '#B42318'  // Red - poor fit
 }
 
 /**

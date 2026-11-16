@@ -11,6 +11,13 @@ import {
   mapWidthToSizeCategory,
 } from '../sdk/doozCapture'
 
+const STOCK_LABEL = {
+  in_stock: 'Tersedia',
+  low_stock: 'Stok terbatas',
+  out_of_stock: 'Habis',
+  preorder: 'Pre-order',
+}
+
 const EMPTY_FRAME_FORM = {
   sku: '',
   name: '',
@@ -28,7 +35,7 @@ const EMPTY_FRAME_FORM = {
   stock_status: 'in_stock',
 }
 
-export default function CatalogAdminPanel({ onBack }) {
+export default function CatalogAdminPanel() {
   const [sizeChart, setSizeChart] = useState(SIZE_CHART_DEFAULT)
   const [frames, setFrames] = useState(CATALOG_FRAMES_DEFAULT)
   const [filterSize, setFilterSize] = useState('')
@@ -101,7 +108,7 @@ export default function CatalogAdminPanel({ onBack }) {
       if (Array.isArray(res?.size_chart)) {
         setSizeChart(res.size_chart)
       }
-      setStatusMessage('Standar ukuran XS–XL resmi DOOZ berhasil diperbarui & disimpan ke Single Source of Truth.')
+      setStatusMessage('Tabel ukuran tersimpan dan langsung dipakai semua aplikasi.')
       await loadCatalog()
     } catch (err) {
       setErrorMessage(err.message)
@@ -159,8 +166,8 @@ export default function CatalogAdminPanel({ onBack }) {
       })
       setStatusMessage(
         editingFrame
-          ? `SKU ${payload.sku} berhasil diperbarui.`
-          : `SKU ${payload.sku} berhasil ditambahkan ke Katalog Bersama.`
+          ? `Frame ${payload.sku} diperbarui.`
+          : `Frame ${payload.sku} ditambahkan ke katalog.`
       )
       setEditingFrame(null)
       setFrameForm(EMPTY_FRAME_FORM)
@@ -178,7 +185,7 @@ export default function CatalogAdminPanel({ onBack }) {
         userId: staffUserId,
         role: staffRole,
       })
-      setStatusMessage(`SKU ${sku} dihapus dari katalog.`)
+      setStatusMessage(`Frame ${sku} dihapus dari katalog.`)
       await loadCatalog()
     } catch (err) {
       setErrorMessage(err.message)
@@ -196,7 +203,7 @@ export default function CatalogAdminPanel({ onBack }) {
         role: staffRole,
       })
       setStatusMessage(
-        `Impor katalog berhasil (${res.imported_size_ranges || 0} rentang ukuran, ${res.imported_frames || 0} SKU frame).`
+        `Impor selesai: ${res.imported_size_ranges || 0} ukuran, ${res.imported_frames || 0} frame.`
       )
       setImportJsonText('')
       await loadCatalog()
@@ -206,224 +213,106 @@ export default function CatalogAdminPanel({ onBack }) {
   }
 
   return (
-    <div className="portal-page" style={{ maxWidth: 1120, margin: '0 auto', padding: '20px 16px 48px' }}>
-      <div
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: 12,
-          marginBottom: 20,
-        }}
-      >
+    <div className="dz-stack">
+      <div className="staff-section-head">
         <div>
-          <span
-            style={{
-              display: 'inline-block',
-              fontSize: 11,
-              fontWeight: 700,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              color: '#a5b4fc',
-              background: 'rgba(99, 102, 241, 0.16)',
-              padding: '4px 10px',
-              borderRadius: 999,
-              marginBottom: 6,
-            }}
-          >
-            Single Source of Truth · Katalog Bersama DOOZ
-          </span>
-          <h2 style={{ margin: 0, fontSize: 22 }}>
-            Manajemen Standar Ukuran (XS–XL) &amp; Katalog SKU Frame
-          </h2>
+          <span className="dz-eyebrow">Katalog</span>
+          <h1 className="dz-title">Ukuran & model frame</h1>
+          <p className="dz-muted">Dipakai bersama oleh Ukur Frame, Coba Kacamata, dan kasir outlet.</p>
         </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <label style={{ fontSize: 12, color: '#94a3b8' }}>
-            Role Akses:{' '}
-            <select
-              value={staffRole}
-              onChange={(e) => setStaffRole(e.target.value)}
-              style={{
-                background: '#161824',
-                color: '#fff',
-                border: '1px solid rgba(255,255,255,0.16)',
-                borderRadius: 8,
-                padding: '6px 10px',
-              }}
-            >
-              <option value="owner">Owner</option>
-              <option value="admin">Admin</option>
-              <option value="kasir">Kasir (Read-Only)</option>
-            </select>
+        <div className="staff-context">
+          <label className="dz-label" htmlFor="katalog-role">
+            Peran
           </label>
-          {onBack && (
-            <button type="button" className="action-button secondary" onClick={onBack}>
-              ← Kembali ke Try-On
-            </button>
-          )}
+          <select id="katalog-role" className="dz-input--sm" value={staffRole} onChange={(e) => setStaffRole(e.target.value)}>
+            <option value="owner">Owner</option>
+            <option value="admin">Admin</option>
+            <option value="kasir">Kasir (hanya lihat)</option>
+          </select>
         </div>
       </div>
 
       {statusMessage && (
-        <div
-          style={{
-            background: 'rgba(34, 197, 94, 0.15)',
-            border: '1px solid rgba(34, 197, 94, 0.4)',
-            color: '#86efac',
-            padding: '12px 16px',
-            borderRadius: 12,
-            marginBottom: 16,
-            fontSize: 14,
-          }}
-        >
-          ✓ {statusMessage}
+        <div className="dz-banner" role="status">
+          <span>✓ {statusMessage}</span>
         </div>
       )}
 
       {errorMessage && (
-        <div
-          style={{
-            background: 'rgba(239, 68, 68, 0.15)',
-            border: '1px solid rgba(239, 68, 68, 0.4)',
-            color: '#fca5a5',
-            padding: '12px 16px',
-            borderRadius: 12,
-            marginBottom: 16,
-            fontSize: 14,
-          }}
-        >
-          ⚠ {errorMessage}
+        <div className="dz-alert" role="alert">
+          {errorMessage}
         </div>
       )}
 
       {/* 1. Size Chart Table (XS-XL) */}
-      <section
-        style={{
-          background: 'rgba(22, 24, 36, 0.92)',
-          border: '1px solid rgba(255,255,255,0.1)',
-          borderRadius: 16,
-          padding: 20,
-          marginBottom: 24,
-        }}
-      >
+      <section className="dz-card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <div>
-            <h3 style={{ margin: 0, fontSize: 17 }}>1. Tabel Standar Ukuran Resmi DOOZ (XS–XL)</h3>
-            <p style={{ margin: '4px 0 0', fontSize: 13, color: '#94a3b8' }}>
-              Endpoint publik: <code>GET /api/catalog/size-chart</code> · Digunakan bersama oleh{' '}
-              <code>ukur-frame-dooz</code>, <code>glasses-try-on</code>, dan kasir outlet.
+            <h3 style={{ margin: 0, fontSize: 17 }}>Tabel ukuran (XS–XL)</h3>
+            <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--dz-text-3)' }}>
+              Perubahan langsung dipakai di Ukur Frame, Coba Kacamata, dan kasir outlet.
             </p>
           </div>
         </div>
 
         <form onSubmit={handleSaveSizeChart}>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <div className="dz-table-wrap">
+            <table className="dz-table">
               <thead>
-                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.12)', color: '#94a3b8', textAlign: 'left' }}>
-                  <th style={{ padding: '8px' }}>Kategori</th>
-                  <th style={{ padding: '8px' }}>Label</th>
-                  <th style={{ padding: '8px' }}>Min (mm)</th>
-                  <th style={{ padding: '8px' }}>Max (mm)</th>
-                  <th style={{ padding: '8px' }}>Bridge Rec</th>
-                  <th style={{ padding: '8px' }}>Temple Rec</th>
-                  <th style={{ padding: '8px' }}>Deskripsi</th>
+                <tr>
+                  <th>Kategori</th>
+                  <th>Label</th>
+                  <th>Min (mm)</th>
+                  <th>Max (mm)</th>
+                  <th>Jembatan hidung</th>
+                  <th>Gagang</th>
+                  <th>Deskripsi</th>
                 </tr>
               </thead>
               <tbody>
                 {sizeChart.map((row, idx) => (
-                  <tr key={row.category} style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                    <td style={{ padding: '8px', fontWeight: 700, color: '#a5b4fc' }}>{row.category}</td>
-                    <td style={{ padding: '8px' }}>
+                  <tr key={row.category}>
+                    <td style={{ fontWeight: 700, color: 'var(--dz-orange-text)' }}>{row.category}</td>
+                    <td>
                       <input
                         type="text"
                         value={row.label || ''}
                         onChange={(e) => handleSizeChartFieldChange(idx, 'label', e.target.value)}
-                        style={{
-                          width: '100%',
-                          background: '#0f111a',
-                          color: '#fff',
-                          border: '1px solid rgba(255,255,255,0.14)',
-                          borderRadius: 6,
-                          padding: '6px 8px',
-                        }}
                       />
                     </td>
-                    <td style={{ padding: '8px', width: 90 }}>
+                    <td style={{ width: 90 }}>
                       <input
                         type="number"
                         value={row.min_mm}
                         onChange={(e) => handleSizeChartFieldChange(idx, 'min_mm', e.target.value)}
-                        style={{
-                          width: '100%',
-                          background: '#0f111a',
-                          color: '#fff',
-                          border: '1px solid rgba(255,255,255,0.14)',
-                          borderRadius: 6,
-                          padding: '6px 8px',
-                        }}
                       />
                     </td>
-                    <td style={{ padding: '8px', width: 90 }}>
+                    <td style={{ width: 90 }}>
                       <input
                         type="number"
                         value={row.max_mm}
                         onChange={(e) => handleSizeChartFieldChange(idx, 'max_mm', e.target.value)}
-                        style={{
-                          width: '100%',
-                          background: '#0f111a',
-                          color: '#fff',
-                          border: '1px solid rgba(255,255,255,0.14)',
-                          borderRadius: 6,
-                          padding: '6px 8px',
-                        }}
                       />
                     </td>
-                    <td style={{ padding: '8px', width: 120 }}>
+                    <td style={{ width: 120 }}>
                       <input
                         type="text"
                         value={row.bridge_mm_rec || ''}
                         onChange={(e) => handleSizeChartFieldChange(idx, 'bridge_mm_rec', e.target.value)}
-                        style={{
-                          width: '100%',
-                          background: '#0f111a',
-                          color: '#fff',
-                          border: '1px solid rgba(255,255,255,0.14)',
-                          borderRadius: 6,
-                          padding: '6px 8px',
-                        }}
                       />
                     </td>
-                    <td style={{ padding: '8px', width: 120 }}>
+                    <td style={{ width: 120 }}>
                       <input
                         type="text"
                         value={row.temple_mm_rec || ''}
                         onChange={(e) => handleSizeChartFieldChange(idx, 'temple_mm_rec', e.target.value)}
-                        style={{
-                          width: '100%',
-                          background: '#0f111a',
-                          color: '#fff',
-                          border: '1px solid rgba(255,255,255,0.14)',
-                          borderRadius: 6,
-                          padding: '6px 8px',
-                        }}
                       />
                     </td>
-                    <td style={{ padding: '8px' }}>
+                    <td>
                       <input
                         type="text"
                         value={row.description || ''}
                         onChange={(e) => handleSizeChartFieldChange(idx, 'description', e.target.value)}
-                        style={{
-                          width: '100%',
-                          background: '#0f111a',
-                          color: '#fff',
-                          border: '1px solid rgba(255,255,255,0.14)',
-                          borderRadius: 6,
-                          padding: '6px 8px',
-                        }}
                       />
                     </td>
                   </tr>
@@ -433,23 +322,15 @@ export default function CatalogAdminPanel({ onBack }) {
           </div>
 
           <div style={{ marginTop: 14, display: 'flex', justifyContent: 'flex-end' }}>
-            <button type="submit" className="action-button primary">
-              💾 Simpan Size Chart Resmi (PUT /api/admin/catalog/size-chart)
+            <button type="submit" className="dz-btn dz-btn--orange">
+              Simpan tabel ukuran
             </button>
           </div>
         </form>
       </section>
 
       {/* 2. Frame Catalog List & Filters */}
-      <section
-        style={{
-          background: 'rgba(22, 24, 36, 0.92)',
-          border: '1px solid rgba(255,255,255,0.1)',
-          borderRadius: 16,
-          padding: 20,
-          marginBottom: 24,
-        }}
-      >
+      <section className="dz-card">
         <div
           style={{
             display: 'flex',
@@ -462,10 +343,10 @@ export default function CatalogAdminPanel({ onBack }) {
         >
           <div>
             <h3 style={{ margin: 0, fontSize: 17 }}>
-              2. Daftar SKU Frame DOOZ ({frames.length} SKU){loading ? ' · Memuat...' : ''}
+              Model frame ({frames.length}){loading ? ' · Memuat...' : ''}
             </h3>
-            <p style={{ margin: '4px 0 0', fontSize: 13, color: '#94a3b8' }}>
-              Endpoint publik: <code>GET /api/catalog/frames?size=&amp;face_shape=&amp;stock=&amp;q=</code>
+            <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--dz-text-3)' }}>
+              Frame yang tampil di Coba Kacamata & rekomendasi Ukur Frame.
             </p>
           </div>
 
@@ -473,36 +354,20 @@ export default function CatalogAdminPanel({ onBack }) {
             <select
               value={filterSize}
               onChange={(e) => setFilterSize(e.target.value)}
-              style={{
-                background: '#0f111a',
-                color: '#fff',
-                border: '1px solid rgba(255,255,255,0.16)',
-                borderRadius: 8,
-                padding: '6px 10px',
-                fontSize: 13,
-              }}
             >
-              <option value="">Semua Ukuran (XS–XL)</option>
-              <option value="XS">Size XS</option>
-              <option value="S">Size S</option>
-              <option value="M">Size M</option>
-              <option value="L">Size L</option>
-              <option value="XL">Size XL</option>
+              <option value="">Semua ukuran</option>
+              <option value="XS">XS</option>
+              <option value="S">S</option>
+              <option value="M">M</option>
+              <option value="L">L</option>
+              <option value="XL">XL</option>
             </select>
 
             <select
               value={filterFace}
               onChange={(e) => setFilterFace(e.target.value)}
-              style={{
-                background: '#0f111a',
-                color: '#fff',
-                border: '1px solid rgba(255,255,255,0.16)',
-                borderRadius: 8,
-                padding: '6px 10px',
-                fontSize: 13,
-              }}
             >
-              <option value="">Semua Bentuk Wajah</option>
+              <option value="">Semua bentuk wajah</option>
               <option value="oval">Oval</option>
               <option value="round">Round</option>
               <option value="square">Square</option>
@@ -513,87 +378,71 @@ export default function CatalogAdminPanel({ onBack }) {
             <select
               value={filterStock}
               onChange={(e) => setFilterStock(e.target.value)}
-              style={{
-                background: '#0f111a',
-                color: '#fff',
-                border: '1px solid rgba(255,255,255,0.16)',
-                borderRadius: 8,
-                padding: '6px 10px',
-                fontSize: 13,
-              }}
             >
-              <option value="">Semua Status Stok</option>
-              <option value="in_stock">In Stock</option>
-              <option value="low_stock">Low Stock</option>
-              <option value="out_of_stock">Out of Stock</option>
-              <option value="preorder">Pre-Order</option>
+              <option value="">Semua stok</option>
+              <option value="in_stock">Tersedia</option>
+              <option value="low_stock">Stok terbatas</option>
+              <option value="out_of_stock">Habis</option>
+              <option value="preorder">Pre-order</option>
             </select>
 
             <input
               type="search"
-              placeholder="Cari SKU / nama..."
+              placeholder="Cari kode / nama..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              style={{
-                background: '#0f111a',
-                color: '#fff',
-                border: '1px solid rgba(255,255,255,0.16)',
-                borderRadius: 8,
-                padding: '6px 10px',
-                fontSize: 13,
-              }}
             />
           </div>
         </div>
 
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+        <div className="dz-table-wrap">
+          <table className="dz-table">
             <thead>
-              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.12)', color: '#94a3b8', textAlign: 'left' }}>
-                <th style={{ padding: '8px' }}>SKU</th>
-                <th style={{ padding: '8px' }}>Nama Frame</th>
-                <th style={{ padding: '8px' }}>Dimensi (W-B-T)</th>
-                <th style={{ padding: '8px' }}>Size</th>
-                <th style={{ padding: '8px' }}>Bentuk Wajah</th>
-                <th style={{ padding: '8px' }}>Harga</th>
-                <th style={{ padding: '8px' }}>Stok</th>
-                <th style={{ padding: '8px' }}>Aksi</th>
+              <tr>
+                <th>SKU</th>
+                <th>Nama</th>
+                <th>Lebar · jembatan · gagang</th>
+                <th>Ukuran</th>
+                <th>Bentuk Wajah</th>
+                <th>Harga</th>
+                <th>Stok</th>
+                <th>Aksi</th>
               </tr>
             </thead>
             <tbody>
               {frames.map((f) => (
-                <tr key={f.sku} style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                  <td style={{ padding: '8px', fontFamily: 'monospace', fontWeight: 700 }}>{f.sku}</td>
-                  <td style={{ padding: '8px' }}>
+                <tr key={f.sku}>
+                  <td style={{ fontWeight: 700 }}>{f.sku}</td>
+                  <td>
                     <strong>{f.name}</strong>
-                    <div style={{ fontSize: 11, color: '#94a3b8' }}>
+                    <div style={{ fontSize: 11, color: 'var(--dz-text-3)' }}>
                       {f.frame_style} · {f.color} · {f.material}
                     </div>
                   </td>
-                  <td style={{ padding: '8px' }}>
+                  <td>
                     {f.frame_width_mm} / {f.bridge_mm} / {f.temple_mm} mm
                   </td>
-                  <td style={{ padding: '8px', fontWeight: 700, color: '#a5b4fc' }}>{f.size_category}</td>
-                  <td style={{ padding: '8px' }}>{(f.face_shapes || []).join(', ')}</td>
-                  <td style={{ padding: '8px' }}>Rp {Number(f.price_idr || 0).toLocaleString('id-ID')}</td>
-                  <td style={{ padding: '8px' }}>{f.stock_status}</td>
-                  <td style={{ padding: '8px', display: 'flex', gap: 6 }}>
+                  <td style={{ fontWeight: 700, color: 'var(--dz-orange-text)' }}>{f.size_category}</td>
+                  <td>{(f.face_shapes || []).join(', ')}</td>
+                  <td>Rp {Number(f.price_idr || 0).toLocaleString('id-ID')}</td>
+                  <td>{STOCK_LABEL[f.stock_status] || f.stock_status}</td>
+                  <td>
+                    <div style={{ display: 'flex', gap: 6 }}>
                     <button
                       type="button"
-                      className="action-button secondary"
-                      style={{ padding: '4px 10px', fontSize: 12 }}
+                      className="dz-btn dz-btn--outline dz-btn--sm"
                       onClick={() => handleEditFrameClick(f)}
                     >
                       Edit
                     </button>
                     <button
                       type="button"
-                      className="action-button secondary"
-                      style={{ padding: '4px 10px', fontSize: 12, color: '#fca5a5' }}
+                      className="dz-btn dz-btn--danger-outline dz-btn--sm"
                       onClick={() => handleDeleteFrame(f.sku)}
                     >
                       Hapus
                     </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -604,16 +453,9 @@ export default function CatalogAdminPanel({ onBack }) {
 
       {/* 3. Add / Edit Frame Form & Bulk Import */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
-        <section
-          style={{
-            background: 'rgba(22, 24, 36, 0.92)',
-            border: '1px solid rgba(255,255,255,0.1)',
-            borderRadius: 16,
-            padding: 20,
-          }}
-        >
+        <section className="dz-card">
           <h3 style={{ margin: '0 0 12px', fontSize: 16 }}>
-            {editingFrame ? `Edit SKU Frame: ${editingFrame}` : '3. Tambah SKU Frame Baru'}
+            {editingFrame ? `Ubah frame ${editingFrame}` : 'Tambah model frame'}
           </h3>
           <form onSubmit={handleSaveFrame} style={{ display: 'grid', gap: 10 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -625,16 +467,7 @@ export default function CatalogAdminPanel({ onBack }) {
                   placeholder="DOOZ-CAT-006"
                   value={frameForm.sku}
                   disabled={Boolean(editingFrame)}
-                  onChange={(e) => setFrameForm({ ...frameForm, sku: e.target.value })}
-                  style={{
-                    width: '100%',
-                    marginTop: 4,
-                    background: '#0f111a',
-                    color: '#fff',
-                    border: '1px solid rgba(255,255,255,0.16)',
-                    borderRadius: 8,
-                    padding: '8px',
-                  }}
+                  onChange={(e) => setFrameForm({ ...frameForm, sku: e.target.value })} style={{ marginTop: 4 }}
                 />
               </label>
               <label style={{ fontSize: 12 }}>
@@ -644,16 +477,7 @@ export default function CatalogAdminPanel({ onBack }) {
                   required
                   placeholder="Cat-Eye Elegance"
                   value={frameForm.name}
-                  onChange={(e) => setFrameForm({ ...frameForm, name: e.target.value })}
-                  style={{
-                    width: '100%',
-                    marginTop: 4,
-                    background: '#0f111a',
-                    color: '#fff',
-                    border: '1px solid rgba(255,255,255,0.16)',
-                    borderRadius: 8,
-                    padding: '8px',
-                  }}
+                  onChange={(e) => setFrameForm({ ...frameForm, name: e.target.value })} style={{ marginTop: 4 }}
                 />
               </label>
             </div>
@@ -671,16 +495,7 @@ export default function CatalogAdminPanel({ onBack }) {
                       frame_width_mm: e.target.value,
                       size_category: mapWidthToSizeCategory(e.target.value, sizeChart),
                     })
-                  }
-                  style={{
-                    width: '100%',
-                    marginTop: 4,
-                    background: '#0f111a',
-                    color: '#fff',
-                    border: '1px solid rgba(255,255,255,0.16)',
-                    borderRadius: 8,
-                    padding: '8px',
-                  }}
+                  } style={{ marginTop: 4 }}
                 />
               </label>
               <label style={{ fontSize: 12 }}>
@@ -688,16 +503,7 @@ export default function CatalogAdminPanel({ onBack }) {
                 <input
                   type="number"
                   value={frameForm.bridge_mm}
-                  onChange={(e) => setFrameForm({ ...frameForm, bridge_mm: e.target.value })}
-                  style={{
-                    width: '100%',
-                    marginTop: 4,
-                    background: '#0f111a',
-                    color: '#fff',
-                    border: '1px solid rgba(255,255,255,0.16)',
-                    borderRadius: 8,
-                    padding: '8px',
-                  }}
+                  onChange={(e) => setFrameForm({ ...frameForm, bridge_mm: e.target.value })} style={{ marginTop: 4 }}
                 />
               </label>
               <label style={{ fontSize: 12 }}>
@@ -705,32 +511,14 @@ export default function CatalogAdminPanel({ onBack }) {
                 <input
                   type="number"
                   value={frameForm.temple_mm}
-                  onChange={(e) => setFrameForm({ ...frameForm, temple_mm: e.target.value })}
-                  style={{
-                    width: '100%',
-                    marginTop: 4,
-                    background: '#0f111a',
-                    color: '#fff',
-                    border: '1px solid rgba(255,255,255,0.16)',
-                    borderRadius: 8,
-                    padding: '8px',
-                  }}
+                  onChange={(e) => setFrameForm({ ...frameForm, temple_mm: e.target.value })} style={{ marginTop: 4 }}
                 />
               </label>
               <label style={{ fontSize: 12 }}>
                 Kategori
                 <select
                   value={frameForm.size_category}
-                  onChange={(e) => setFrameForm({ ...frameForm, size_category: e.target.value })}
-                  style={{
-                    width: '100%',
-                    marginTop: 4,
-                    background: '#0f111a',
-                    color: '#fff',
-                    border: '1px solid rgba(255,255,255,0.16)',
-                    borderRadius: 8,
-                    padding: '8px',
-                  }}
+                  onChange={(e) => setFrameForm({ ...frameForm, size_category: e.target.value })} style={{ marginTop: 4 }}
                 >
                   <option value="XS">XS</option>
                   <option value="S">S</option>
@@ -747,49 +535,31 @@ export default function CatalogAdminPanel({ onBack }) {
                 <input
                   type="text"
                   value={frameForm.face_shapes_text}
-                  onChange={(e) => setFrameForm({ ...frameForm, face_shapes_text: e.target.value })}
-                  style={{
-                    width: '100%',
-                    marginTop: 4,
-                    background: '#0f111a',
-                    color: '#fff',
-                    border: '1px solid rgba(255,255,255,0.16)',
-                    borderRadius: 8,
-                    padding: '8px',
-                  }}
+                  onChange={(e) => setFrameForm({ ...frameForm, face_shapes_text: e.target.value })} style={{ marginTop: 4 }}
                 />
               </label>
               <label style={{ fontSize: 12 }}>
                 Status Stok
                 <select
                   value={frameForm.stock_status}
-                  onChange={(e) => setFrameForm({ ...frameForm, stock_status: e.target.value })}
-                  style={{
-                    width: '100%',
-                    marginTop: 4,
-                    background: '#0f111a',
-                    color: '#fff',
-                    border: '1px solid rgba(255,255,255,0.16)',
-                    borderRadius: 8,
-                    padding: '8px',
-                  }}
+                  onChange={(e) => setFrameForm({ ...frameForm, stock_status: e.target.value })} style={{ marginTop: 4 }}
                 >
-                  <option value="in_stock">In Stock</option>
-                  <option value="low_stock">Low Stock</option>
-                  <option value="out_of_stock">Out of Stock</option>
-                  <option value="preorder">Pre-Order</option>
+                  <option value="in_stock">Tersedia</option>
+                  <option value="low_stock">Stok terbatas</option>
+                  <option value="out_of_stock">Habis</option>
+                  <option value="preorder">Pre-order</option>
                 </select>
               </label>
             </div>
 
             <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
-              <button type="submit" className="action-button primary">
-                {editingFrame ? 'Simpan Perubahan SKU' : '+ Tambah SKU Frame'}
+              <button type="submit" className="dz-btn dz-btn--orange">
+                {editingFrame ? 'Simpan perubahan' : 'Tambah frame'}
               </button>
               {editingFrame && (
                 <button
                   type="button"
-                  className="action-button secondary"
+                  className="dz-btn dz-btn--outline"
                   onClick={() => {
                     setEditingFrame(null)
                     setFrameForm(EMPTY_FRAME_FORM)
@@ -802,39 +572,21 @@ export default function CatalogAdminPanel({ onBack }) {
           </form>
         </section>
 
-        <section
-          style={{
-            background: 'rgba(22, 24, 36, 0.92)',
-            border: '1px solid rgba(255,255,255,0.1)',
-            borderRadius: 16,
-            padding: 20,
-          }}
-        >
-          <h3 style={{ margin: '0 0 8px', fontSize: 16 }}>4. Impor Massal Katalog (JSON)</h3>
-          <p style={{ margin: '0 0 10px', fontSize: 12, color: '#94a3b8' }}>
-            Endpoint: <code>POST /api/admin/catalog/import</code> · Mendukung impor tabel <code>size_chart</code>{' '}
-            maupun daftar <code>frames</code> dari tim DOOZ sekaligus.
+        <section className="dz-card">
+          <h3 style={{ margin: '0 0 8px', fontSize: 16 }}>Impor banyak frame sekaligus (JSON)</h3>
+          <p style={{ margin: '0 0 10px', fontSize: 12, color: 'var(--dz-text-3)' }}>
+            Tempel data JSON berisi <code>frames</code> dan/atau <code>size_chart</code>.
           </p>
           <form onSubmit={handleBulkImport}>
             <textarea
               rows={7}
               placeholder='{"frames": [{"sku": "DOOZ-TIT-007", "name": "Titanium Air", "frame_width_mm": 136, "stock_status": "in_stock"}]}'
               value={importJsonText}
-              onChange={(e) => setImportJsonText(e.target.value)}
-              style={{
-                width: '100%',
-                background: '#0f111a',
-                color: '#fff',
-                border: '1px solid rgba(255,255,255,0.16)',
-                borderRadius: 8,
-                padding: '10px',
-                fontFamily: 'monospace',
-                fontSize: 12,
-              }}
+              onChange={(e) => setImportJsonText(e.target.value)} style={{ marginTop: 4 }}
             />
             <div style={{ marginTop: 10, display: 'flex', justifyContent: 'flex-end' }}>
-              <button type="submit" className="action-button secondary">
-                📥 Impor JSON ke Customer Hub
+              <button type="submit" className="dz-btn dz-btn--outline">
+                Impor
               </button>
             </div>
           </form>

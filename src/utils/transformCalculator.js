@@ -308,7 +308,7 @@ export function resetSmoothing() {
  */
 export function checkFacePosition(landmarks) {
     if (!landmarks || landmarks.length < 468) {
-        return { ok: false, message: 'No face detected' }
+        return { ok: false, message: 'Arahkan wajah ke kamera' }
     }
 
     const leftEye = landmarks[LANDMARKS.LEFT_EYE.OUTER_CORNER]
@@ -318,25 +318,25 @@ export function checkFacePosition(landmarks) {
     // Check if face is too far to one side
     const faceCenter = (leftEye.x + rightEye.x) / 2
     if (faceCenter < 0.25) {
-        return { ok: false, message: 'Move right' }
+        return { ok: false, message: 'Geser sedikit ke kanan' }
     }
     if (faceCenter > 0.75) {
-        return { ok: false, message: 'Move left' }
+        return { ok: false, message: 'Geser sedikit ke kiri' }
     }
 
     // Check if face is too small (too far from camera)
     const ipd = distance(leftEye, rightEye)
     if (ipd < 0.06) {
-        return { ok: false, message: 'Move closer' }
+        return { ok: false, message: 'Dekatkan wajah ke kamera' }
     }
     if (ipd > 0.25) {
-        return { ok: false, message: 'Move back' }
+        return { ok: false, message: 'Mundur sedikit' }
     }
 
     // Check extreme head rotation
     const yaw = Math.abs(estimateYaw(landmarks))
     if (yaw > 0.6) {
-        return { ok: false, message: 'Face forward' }
+        return { ok: false, message: 'Hadap lurus ke kamera' }
     }
 
     return { ok: true, message: '' }

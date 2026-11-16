@@ -243,7 +243,7 @@ export function resolveCustomerSizeProfile({
       widthMm,
       requestedSku: urlSkuRaw || portalMeas.frame_sku || null,
       source: 'portal_session',
-      sourceLabel: 'Portal Data Saya',
+      sourceLabel: 'Kartu Member Saya',
     }
   }
 

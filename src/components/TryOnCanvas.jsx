@@ -54,7 +54,7 @@ const TryOnCanvas = forwardRef(({
     const [cameraReady, setCameraReady] = useState(false)
     const [cameraError, setCameraError] = useState(null)
     const [canvasSize, setCanvasSize] = useState({ width: 640, height: 480 })
-    const [faceStatus, setFaceStatus] = useState({ ok: false, message: 'Initializing...' })
+    const [faceStatus, setFaceStatus] = useState({ ok: false, message: 'Menyiapkan kamera...' })
     const [debugInfo, setDebugInfo] = useState(null)
 
     const { landmarks, faceMatrix, faceCount, isLoading, error, isTracking, startTracking, stopTracking, checkLighting } = useFaceTracking(videoRef)
@@ -70,7 +70,7 @@ const TryOnCanvas = forwardRef(({
                 if (lightingData) {
                     // Update face status based on lighting
                     if (lightingData.status === 'low') {
-                        setFaceStatus(prev => prev.ok ? { ok: true, message: 'Lighting is dim' } : prev)
+                        setFaceStatus(prev => prev.ok ? { ok: true, message: 'Cahaya kurang terang' } : prev)
                     }
 
                     // Dynamic Lighting: DISABLED - was causing black glasses
@@ -115,8 +115,8 @@ const TryOnCanvas = forwardRef(({
                 console.error('Camera access error:', err)
                 setCameraError(
                     err.name === 'NotAllowedError'
-                        ? 'Camera access denied. Please allow camera access and refresh.'
-                        : 'Unable to access camera. Please check your camera settings.'
+                        ? 'Izin kamera ditolak. Izinkan akses kamera lalu muat ulang halaman.'
+                        : 'Kamera tidak bisa dibuka. Cek pengaturan kamera HP kamu.'
                 )
             }
         }
@@ -510,7 +510,7 @@ const TryOnCanvas = forwardRef(({
                 <div className="error-icon">📷</div>
                 <p className="error-message">{cameraError}</p>
                 <button onClick={() => window.location.reload()} className="retry-button">
-                    Try Again
+                    Coba lagi
                 </button>
             </div>
         )
@@ -520,9 +520,9 @@ const TryOnCanvas = forwardRef(({
         return (
             <div className="error-container">
                 <div className="error-icon">⚠️</div>
-                <p className="error-message">Face tracking error: {error}</p>
+                <p className="error-message">Kamera belum bisa membaca wajah. Coba muat ulang halaman.</p>
                 <button onClick={() => window.location.reload()} className="retry-button">
-                    Reload
+                    Muat ulang
                 </button>
             </div>
         )
@@ -558,7 +558,7 @@ const TryOnCanvas = forwardRef(({
             {(isLoading || !cameraReady) && (
                 <div className="loading-overlay">
                     <div className="loading-spinner"></div>
-                    <p>{!cameraReady ? 'Starting camera...' : 'Loading face tracking...'}</p>
+                    <p>{!cameraReady ? 'Membuka kamera...' : 'Menyiapkan coba kacamata...'}</p>
                 </div>
             )}
 

@@ -5,9 +5,9 @@ const hubTarget = process.env.VITE_HUB_PROXY_TARGET || 'http://127.0.0.1:8089'
 
 export default defineConfig({
     plugins: [react()],
-    // VITE_BASE_PATH overrides the base (e.g. "/" when served at a domain root);
-    // default keeps the original GitHub Pages sub-path behaviour.
-    base: process.env.VITE_BASE_PATH || (process.env.NODE_ENV === 'production' ? '/try-on/' : '/'),
+    // Default "/" (Customer Hub Go melayani dist/ di root: /, /kartu-member, /staf/*).
+    // GitHub Pages memakai VITE_BASE_PATH=/try-on/ (lihat .github/workflows/deploy.yml).
+    base: process.env.VITE_BASE_PATH || '/',
     server: {
         host: true,
         port: 5173,

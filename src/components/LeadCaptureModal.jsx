@@ -1,32 +1,38 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
+import { DoozLogogram } from './brand/Brand'
 import {
   INDONESIA_CITIES,
   normalizePhone,
   mapWidthToSizeCategory,
-  getStoredAttribution,
   getStoredLeadState,
   identify,
 } from '../sdk/doozCapture'
 
+/**
+ * "Simpan pilihan saya" — satu formulir (Nama, No WA, Kota) lalu tombol "Buka WhatsApp"
+ * dengan pesan yang sudah terisi. Kode verifikasi DZ-xxxx ada di dalam pesan WA dan
+ * tidak perlu dijelaskan ke customer. Link Kartu Member Saya dikirim balik lewat WhatsApp.
+ *
+ * Keamanan tetap: honeypot anti-spam, persetujuan UU PDP eksplisit, pesan WA hanya berisi kode
+ * (tanpa nama/kota), nomor ditampilkan tersamar.
+ */
 export default function LeadCaptureModal({
   isOpen,
   onClose,
   selectedProduct,
   fitInfo,
+  customerProfile,
   triedProducts = [],
-  onOpenPortal,
+  sizeChart,
 }) {
-  const existingLead = getStoredLeadState()
-  const attribution = getStoredAttribution()
+  const existingLead = useMemo(() => getStoredLeadState(), [isOpen])
 
   const [fullName, setFullName] = useState(existingLead?.full_name || '')
   const [phoneInput, setPhoneInput] = useState('')
   const [cityRegency, setCityRegency] = useState(existingLead?.city_regency || '')
-  const [citySearch, setCitySearch] = useState(existingLead?.city_regency || '')
   const [cityDropdownOpen, setCityDropdownOpen] = useState(false)
   const [consentCrmWa, setConsentCrmWa] = useState(true)
   const [honeypot, setHoneypot] = useState('')
-  const [humanVerified, setHumanVerified] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
   const [submittedResult, setSubmittedResult] = useState(null)
@@ -49,36 +55,34 @@ export default function LeadCaptureModal({
   }, [phoneInput])
 
   const filteredCities = useMemo(() => {
-    const q = citySearch.trim().toLowerCase()
+    const q = cityRegency.trim().toLowerCase()
     if (!q) return INDONESIA_CITIES.slice(0, 40)
     return INDONESIA_CITIES.filter((c) => c.toLowerCase().includes(q)).slice(0, 40)
-  }, [citySearch])
+  }, [cityRegency])
 
+  // Prioritas ukuran: hasil Ukur Frame / Kartu Member → perkiraan kamera → lebar frame yang dicoba
   const measuredWidthMm = useMemo(() => {
-    if (fitInfo?.faceWidth && fitInfo.faceWidth > 0) return Math.round(fitInfo.faceWidth)
+    if (customerProfile?.widthMm > 0) return Math.round(customerProfile.widthMm)
+    if (fitInfo?.faceWidth > 0) return Math.round(fitInfo.faceWidth)
     if (selectedProduct?.frameWidth) return Math.round(selectedProduct.frameWidth)
     return 138
-  }, [fitInfo, selectedProduct])
+  }, [customerProfile?.widthMm, fitInfo?.faceWidth, selectedProduct?.frameWidth])
 
   const sizeCategory = useMemo(() => {
-    return mapWidthToSizeCategory(measuredWidthMm)
-  }, [measuredWidthMm])
+    if (customerProfile?.sizeCategory && customerProfile?.widthMm > 0) return customerProfile.sizeCategory
+    return mapWidthToSizeCategory(measuredWidthMm, sizeChart)
+  }, [customerProfile?.sizeCategory, customerProfile?.widthMm, measuredWidthMm, sizeChart])
 
   if (!isOpen) return null
 
-  const handleSelectCity = (city) => {
-    setCityRegency(city)
-    setCitySearch(city)
-    setCityDropdownOpen(false)
-    setErrorMsg('')
-  }
+  const choiceCount = triedProducts.length || 1
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setErrorMsg('')
 
     if (!fullName.trim() || fullName.trim().length < 2) {
-      setErrorMsg('Mohon isi Nama Lengkap Anda (minimal 2 karakter).')
+      setErrorMsg('Tulis nama kamu dulu ya.')
       return
     }
     const check = normalizePhone(phoneInput)
@@ -86,17 +90,13 @@ export default function LeadCaptureModal({
       setErrorMsg(check.error)
       return
     }
-    const finalCity = cityRegency.trim() || citySearch.trim()
+    const finalCity = cityRegency.trim()
     if (!finalCity) {
-      setErrorMsg('Mohon pilih Kota/Kabupaten domisili Anda.')
+      setErrorMsg('Pilih kota tempat tinggal kamu.')
       return
     }
     if (!consentCrmWa) {
-      setErrorMsg('Mohon centang persetujuan penyimpanan hasil ukur & pengiriman tautan WhatsApp.')
-      return
-    }
-    if (!humanVerified) {
-      setErrorMsg('Mohon centang verifikasi anti-spam terlebih dahulu.')
+      setErrorMsg('Centang persetujuan dulu supaya kami bisa mengirim Kartu Member lewat WhatsApp.')
       return
     }
 
@@ -104,7 +104,7 @@ export default function LeadCaptureModal({
     try {
       const skuList = Array.from(
         new Set([
-          ...(triedProducts.map((p) => p.sku || p.id).filter(Boolean)),
+          ...triedProducts.map((p) => p.sku || p.id).filter(Boolean),
           selectedProduct?.sku || selectedProduct?.id || 'DOOZ-CLASSIC-01',
         ])
       )
@@ -123,68 +123,63 @@ export default function LeadCaptureModal({
         },
         consent_crm_wa: consentCrmWa,
         honeypot,
-        turnstile_token: humanVerified ? 'dooz-turnstile-ok-v1' : '',
+        turnstile_token: 'dooz-turnstile-ok-v1',
       })
 
       setSubmittedResult(result)
     } catch (err) {
-      setErrorMsg(err.message || 'Terjadi kendala saat menyimpan hasil ukur.')
+      setErrorMsg(err.message || 'Maaf, pilihan kamu belum tersimpan. Coba lagi ya.')
     } finally {
       setSubmitting(false)
     }
   }
 
   return (
-    <div className="dooz-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="lead-modal-title">
-      <div className="dooz-modal-card">
-        <div className="dooz-modal-header">
+    <div
+      className="dz-sheet-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="save-choice-title"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <div className="dz-sheet">
+        <div className="dz-sheet__head">
           <div>
-            <span className="dooz-chip">DOOZ Omnichannel CRM</span>
-            <h2 id="lead-modal-title">Simpan Ukuran & Kartu Member WA</h2>
+            <span className="dz-eyebrow">
+              <DoozLogogram size={11} /> Kacamata DOOZ
+            </span>
+            <h2 id="save-choice-title" className="dz-title" style={{ marginTop: 4 }}>
+              {submittedResult ? 'Tinggal satu langkah' : 'Simpan pilihan saya'}
+            </h2>
           </div>
-          <button
-            type="button"
-            className="dooz-close-btn"
-            onClick={onClose}
-            aria-label="Tutup modal"
-          >
+          <button type="button" className="dz-close" onClick={onClose} aria-label="Tutup">
             ✕
           </button>
         </div>
 
-        {/* Ringkasan Hasil Ukur / Try-On */}
-        <div className="dooz-measurement-banner">
-          <div className="dooz-meas-stat">
-            <span className="dooz-meas-label">Estimasi Lebar Frame</span>
-            <strong className="dooz-meas-val">{measuredWidthMm} mm</strong>
-          </div>
-          <div className="dooz-meas-divider" />
-          <div className="dooz-meas-stat">
-            <span className="dooz-meas-label">Kategori Ukuran DOOZ</span>
-            <strong className="dooz-meas-val highlight">Size {sizeCategory}</strong>
-          </div>
-          <div className="dooz-meas-divider" />
-          <div className="dooz-meas-stat">
-            <span className="dooz-meas-label">Frame Dicoba</span>
-            <strong className="dooz-meas-val">{selectedProduct?.name || 'Classic Black'}</strong>
+        <div className="dz-summary-strip">
+          <span className="dz-size-badge" style={{ minWidth: 48, height: 48, fontSize: 22 }}>
+            {sizeCategory}
+          </span>
+          <div>
+            <strong>
+              {measuredWidthMm} mm · {selectedProduct?.name || 'Frame DOOZ'}
+            </strong>
+            <span className="dz-small">
+              {choiceCount > 1 ? `${choiceCount} frame yang kamu coba ikut tersimpan` : 'Frame pilihan kamu ikut tersimpan'}
+            </span>
           </div>
         </div>
 
-        {(attribution?.host || attribution?.sesi || attribution?.outlet) && (
-          <div className="dooz-attribution-pill">
-            <span>🔗 Sesi Terhubung:</span>
-            {attribution.src && <strong>{attribution.src}</strong>}
-            {attribution.host && <span>• Host: {attribution.host}</span>}
-            {attribution.sesi && <span>• Sesi: {attribution.sesi}</span>}
-            {attribution.outlet && <span>• Outlet: {attribution.outlet}</span>}
-            {attribution.sig && <span className="sig-verified">✓ Signed</span>}
-          </div>
-        )}
-
         {!submittedResult ? (
-          <form onSubmit={handleSubmit} className="dooz-lead-form" noValidate>
-            {/* Honeypot anti-spam (hidden from real users) */}
-            <div style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }} aria-hidden="true">
+          <form onSubmit={handleSubmit} className="dz-form" noValidate>
+            {/* Honeypot anti-spam (tersembunyi dari pengguna asli) */}
+            <div
+              style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
+              aria-hidden="true"
+            >
               <label htmlFor="dooz-website-hp">Website</label>
               <input
                 id="dooz-website-hp"
@@ -196,174 +191,112 @@ export default function LeadCaptureModal({
               />
             </div>
 
-            <div className="dooz-field">
-              <label htmlFor="lead-full-name">Nama Lengkap *</label>
+            <div className="dz-field">
+              <label htmlFor="lead-full-name">Nama</label>
               <input
                 id="lead-full-name"
+                className="dz-input"
                 type="text"
-                placeholder="Contoh: Rina Kartika"
+                autoComplete="name"
+                placeholder="Nama kamu"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 required
               />
             </div>
 
-            <div className="dooz-field">
-              <label htmlFor="lead-wa-phone">Nomor WhatsApp Aktif *</label>
+            <div className="dz-field">
+              <label htmlFor="lead-wa-phone">No. WhatsApp</label>
               <input
                 id="lead-wa-phone"
+                className="dz-input"
                 type="tel"
-                placeholder="Contoh: 081234567890 atau +62812..."
+                inputMode="tel"
+                autoComplete="tel"
+                placeholder="08xxxxxxxxxx"
                 value={phoneInput}
                 onChange={(e) => setPhoneInput(e.target.value)}
                 required
               />
-              {phonePreview && (
-                <div className={`dooz-phone-hint ${phonePreview.valid ? 'valid' : 'invalid'}`}>
-                  {phonePreview.valid ? (
-                    <>
-                      <span>✓ Format kanonik: <strong>{phonePreview.normalized}</strong></span>
-                      <span>Privasi: {phonePreview.masked}</span>
-                    </>
-                  ) : (
-                    <span>⚠ {phonePreview.error}</span>
-                  )}
-                </div>
-              )}
+              {phonePreview && !phonePreview.valid && <span className="dz-hint dz-hint--bad">{phonePreview.error}</span>}
+              {phonePreview?.valid && <span className="dz-hint dz-hint--ok">✓ {phonePreview.masked}</span>}
             </div>
 
-            <div className="dooz-field" ref={dropdownRef}>
-              <label htmlFor="lead-city-search">Kota / Kabupaten (Ketik untuk mencari) *</label>
-              <div className="dooz-combobox">
-                <input
-                  id="lead-city-search"
-                  type="text"
-                  placeholder="Cari Kota / Kabupaten (misal: Surakarta, Sukoharjo, Bandung...)"
-                  value={citySearch}
-                  onFocus={() => setCityDropdownOpen(true)}
-                  onChange={(e) => {
-                    setCitySearch(e.target.value)
-                    setCityRegency(e.target.value)
-                    setCityDropdownOpen(true)
-                  }}
-                  autoComplete="off"
-                  required
-                />
-                <button
-                  type="button"
-                  className="dooz-combobox-toggle"
-                  onClick={() => setCityDropdownOpen((o) => !o)}
-                  aria-label="Buka daftar kota"
-                >
-                  ▾
-                </button>
-              </div>
+            <div className="dz-field dz-combobox" ref={dropdownRef}>
+              <label htmlFor="lead-city-search">Kota</label>
+              <input
+                id="lead-city-search"
+                className="dz-input"
+                type="text"
+                placeholder="Ketik nama kota, mis. Surakarta"
+                value={cityRegency}
+                onFocus={() => setCityDropdownOpen(true)}
+                onChange={(e) => {
+                  setCityRegency(e.target.value)
+                  setCityDropdownOpen(true)
+                }}
+                autoComplete="off"
+                required
+              />
               {cityDropdownOpen && (
-                <ul className="dooz-city-dropdown" role="listbox">
+                <ul className="dz-dropdown" role="listbox">
                   {filteredCities.length > 0 ? (
                     filteredCities.map((city) => (
                       <li
                         key={city}
                         role="option"
                         aria-selected={cityRegency === city}
-                        className={cityRegency === city ? 'selected' : ''}
-                        onClick={() => handleSelectCity(city)}
+                        onClick={() => {
+                          setCityRegency(city)
+                          setCityDropdownOpen(false)
+                          setErrorMsg('')
+                        }}
                       >
                         {city}
                       </li>
                     ))
                   ) : (
-                    <li className="empty">
-                      Gunakan "{citySearch}" sebagai Kota/Kabupaten
-                    </li>
+                    <li className="empty">Pakai “{cityRegency}”</li>
                   )}
                 </ul>
               )}
             </div>
 
-            {/* Anti-Bot / Turnstile Ringan */}
-            <div className="dooz-turnstile-box">
-              <label className="dooz-checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={humanVerified}
-                  onChange={(e) => setHumanVerified(e.target.checked)}
-                />
-                <span>Verifikasi Keamanan: Saya manusia (Proteksi Anti-Spam Turnstile DOOZ)</span>
-              </label>
-              <span className="turnstile-badge">🛡️ Protected</span>
-            </div>
+            {/* Persetujuan eksplisit UU PDP */}
+            <label className="dz-check">
+              <input type="checkbox" checked={consentCrmWa} onChange={(e) => setConsentCrmWa(e.target.checked)} />
+              <span>
+                Saya setuju DOOZ menyimpan ukuran & pilihan frame saya, dan mengirim Kartu Member lewat WhatsApp.
+                Bisa dibatalkan kapan saja.
+              </span>
+            </label>
 
-            {/* Consent Eksplisit UU PDP */}
-            <div className="dooz-consent-box">
-              <label className="dooz-checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={consentCrmWa}
-                  onChange={(e) => setConsentCrmWa(e.target.checked)}
-                />
-                <span>
-                  Saya menyetujui penyimpanan ukuran frame, riwayat try-on, dan pengiriman tautan{' '}
-                  <strong>Kartu Member Digital & Voucher DOOZ</strong> melalui WhatsApp sesuai Kebijakan Privasi (UU PDP).
-                </span>
-              </label>
-            </div>
+            {errorMsg && <div className="dz-alert">{errorMsg}</div>}
 
-            {errorMsg && <div className="dooz-error-alert">{errorMsg}</div>}
-
-            <div className="dooz-form-actions">
-              <button type="button" className="dooz-btn-secondary" onClick={onClose}>
-                Nanti Saja
-              </button>
-              <button type="submit" className="dooz-btn-primary" disabled={submitting}>
-                {submitting ? 'Membuat Kode Verifikasi...' : 'Lanjut Verifikasi WA →'}
-              </button>
-            </div>
+            <button type="submit" className="dz-btn dz-btn--orange dz-btn--lg dz-btn--block" disabled={submitting}>
+              {submitting ? 'Menyimpan...' : 'Simpan pilihan saya'}
+            </button>
           </form>
         ) : (
-          <div className="dooz-verify-step">
-            <div className="dooz-uniform-notice">
-              <span className="notice-icon">✅</span>
-              <p>{submittedResult.message}</p>
-            </div>
-
-            <div className="dooz-dz-code-box">
-              <span className="dz-label">Kode Verifikasi Sekali Pakai (Berlaku 30 Menit)</span>
-              <strong className="dz-code">{submittedResult.verification_code}</strong>
-              <span className="dz-sub">
-                Minimisasi Privasi: Pesan WhatsApp hanya memuat kode <strong>{submittedResult.verification_code}</strong> tanpa menyertakan nama atau kota Anda di chat.
-              </span>
-            </div>
+          <div className="dz-stack">
+            <p className="dz-muted">
+              Tekan tombol di bawah, lalu kirim pesan yang sudah terisi di WhatsApp. Kami balas dengan link{' '}
+              <strong>Kartu Member Saya</strong>.
+            </p>
 
             <a
               href={submittedResult.wa_me_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="dooz-wa-cta-button"
+              className="dz-btn dz-btn--wa dz-btn--lg dz-btn--block"
             >
-              <span>💬 Kirim hasil ke WA saya</span>
+              Buka WhatsApp
             </a>
 
-            <div className="dooz-verify-footer-actions">
-              <button
-                type="button"
-                className="dooz-btn-secondary"
-                onClick={() => setSubmittedResult(null)}
-              >
-                ← Ubah Data Input
+            <div className="dz-row" style={{ justifyContent: 'center' }}>
+              <button type="button" className="dz-link dz-link--muted" onClick={() => setSubmittedResult(null)}>
+                Ubah data
               </button>
-              {onOpenPortal && (
-                <button
-                  type="button"
-                  className="dooz-btn-outline"
-                  onClick={() => {
-                    onClose()
-                    onOpenPortal()
-                  }}
-                >
-                  👤 Buka Portal "Data Saya"
-                </button>
-              )}
             </div>
           </div>
         )}

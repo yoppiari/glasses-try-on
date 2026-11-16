@@ -1287,36 +1287,3 @@ func (s *Server) handleAdminCatalogImport(w http.ResponseWriter, r *http.Request
 		"imported_frames":      frameCount,
 	})
 }
-
-// handleAdminCatalogWebPage serves an interactive Admin Catalog Management page at /admin/catalog
-func (s *Server) handleAdminCatalogWebPage(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(adminCatalogStandaloneHTML))
-}
-
-const adminCatalogStandaloneHTML = `<!DOCTYPE html>
-<html lang="id">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Manajemen Katalog Bersama (SSOT) — Admin Customer Hub DOOZ</title>
-  <style>
-    body { font-family: system-ui, -apple-system, sans-serif; background: #0a0a0f; color: #f8fafc; margin: 0; padding: 24px; }
-    .container { max-width: 1080px; margin: 0 auto; }
-    .card { background: #131520; border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; padding: 20px; margin-bottom: 20px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 14px; }
-    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.08); }
-    th { color: #94a3b8; font-weight: 600; text-transform: uppercase; font-size: 12px; }
-    .badge { display: inline-block; padding: 3px 8px; border-radius: 6px; font-size: 12px; font-weight: 700; background: #6366f1; color: #fff; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="card">
-      <h1>Manajemen Katalog Bersama (Single Source of Truth) — DOOZ Optik</h1>
-      <p>Standar ukuran <strong>XS–XL (mm)</strong> dan daftar SKU frame aktif untuk seluruh mini-app (<code>ukur-frame-dooz</code> &amp; <code>glasses-try-on</code>) dan kasir outlet.</p>
-    </div>
-  </div>
-</body>
-</html>`

@@ -11,6 +11,12 @@ import {
   kasirFetchDemoMemberQR,
 } from '../sdk/doozCapture'
 
+const ACTION_LABELS = {
+  store_visit: 'Kunjungan',
+  voucher_claimed: 'Klaim voucher',
+  frame_tried: 'Frame dicoba',
+}
+
 const OUTLET_LIST = [
   { id: 'outlet-solo-gading', label: 'DOOZ Optik Gading — Kota Surakarta (Solo)' },
   { id: 'outlet-sukoharjo', label: 'DOOZ Optik Sukoharjo' },
@@ -51,18 +57,18 @@ function WalkInQRMatrixSVG({ url = 'https://wa.me/6281122334455' }) {
   }, [url])
 
   return (
-    <svg viewBox={`0 0 ${size} ${size}`} width="160" height="160" className="dooz-qr-svg" role="img" aria-label="QR Code Verifikasi Walk-In Kasir">
+    <svg viewBox={`0 0 ${size} ${size}`} width="160" height="160" className="dooz-qr-svg" role="img" aria-label="QR WhatsApp pelanggan baru">
       <rect width={size} height={size} fill="#ffffff" rx="1.2" />
       {cells.map((row, rIdx) =>
         row.map((filled, cIdx) =>
-          filled ? <rect key={`${rIdx}-${cIdx}`} x={cIdx} y={rIdx} width={0.92} height={0.92} fill="#0a0a0a" rx="0.15" /> : null
+          filled ? <rect key={`${rIdx}-${cIdx}`} x={cIdx} y={rIdx} width={0.92} height={0.92} fill="#252A2D" rx="0.15" /> : null
         )
       )}
     </svg>
   )
 }
 
-export default function KasirOutletPanel({ onBack }) {
+export default function KasirOutletPanel() {
   const [activeTab, setActiveTab] = useState('level1') // 'level1' | 'level2' | 'walkin'
   const [staffUserId, setStaffUserId] = useState('kasir-gading-01')
   const [staffOutletId, setStaffOutletId] = useState(OUTLET_LIST[0].id)
@@ -111,7 +117,7 @@ export default function KasirOutletPanel({ onBack }) {
       setLookupPhoneInput(demo.phone || '081299887766')
       setQrTokenInput(demo.qr_token || '')
       setStatusBanner(
-        `Data member uji (${demo.member_code} • ${demo.phone}) siap! Anda dapat langsung menguji Cari Level 1 maupun Scan QR Level 2.`
+        `Data contoh siap: ${demo.member_code} (${demo.phone}). Coba menu Cari nomor WA atau Scan Kartu Member.`
       )
     } catch (err) {
       setErrorBanner(err.message)
@@ -126,7 +132,7 @@ export default function KasirOutletPanel({ onBack }) {
     // Reject partial name search explicitly per PRD
     if (/[a-zA-Z]/.test(lookupPhoneInput.trim())) {
       setErrorBanner(
-        'Pencarian nama sebagian diblokir (Anti-Insider Threat). Kasir Level 1 wajib mengetik Nomor WhatsApp Lengkap (contoh: 081299887766).'
+        'Cari pakai nomor WhatsApp lengkap, bukan nama (contoh: 081299887766). Ini untuk melindungi data pelanggan.'
       )
       return
     }
@@ -141,7 +147,7 @@ export default function KasirOutletPanel({ onBack }) {
       const res = await kasirLookupPhone(lookupPhoneInput, staffContext)
       setLevel1Result(res)
       setStatusBanner(
-        `Lookup Level 1 berhasil dicatat ke Audit Log (${staffContext.userId} @ ${staffContext.outletId}).`
+        `Pencarian tercatat di riwayat akses (${staffContext.userId} · ${staffContext.outletId}).`
       )
     } catch (err) {
       setLevel1Result(null)
@@ -156,7 +162,7 @@ export default function KasirOutletPanel({ onBack }) {
     setErrorBanner('')
     setStatusBanner('')
     if (!qrTokenInput.trim()) {
-      setErrorBanner('Silakan pindai atau tempel Token QR Dinamis dari HP pelanggan terlebih dahulu.')
+      setErrorBanner('Pindai QR Kartu Member di HP pelanggan dulu.')
       return
     }
 
@@ -165,7 +171,7 @@ export default function KasirOutletPanel({ onBack }) {
       const res = await kasirScanQR(qrTokenInput.trim(), staffContext)
       setLevel2Result(res)
       setStatusBanner(
-        `Akses Level 2 (Penuh) terbuka untuk ${res.contact?.member_code} dan tercatat di Audit Log.`
+        `Data lengkap ${res.contact?.member_code} terbuka. Akses ini tercatat di riwayat akses.`
       )
     } catch (err) {
       setLevel2Result(null)
@@ -209,7 +215,7 @@ export default function KasirOutletPanel({ onBack }) {
         setLevel2Result(res.profile)
       }
       setLevel2ActionNotes('')
-      setStatusBanner(`Aksi Level 2 (${eventType}) berhasil disimpan ke profil member & Audit Log.`)
+      setStatusBanner(`${ACTION_LABELS[eventType] || 'Tindakan'} tersimpan di Kartu Member pelanggan.`)
     } catch (err) {
       setErrorBanner(err.message)
     } finally {
@@ -222,7 +228,7 @@ export default function KasirOutletPanel({ onBack }) {
     setErrorBanner('')
     setStatusBanner('')
     if (!walkInName.trim() || walkInName.trim().length < 2) {
-      setErrorBanner('Nama lengkap pelanggan wajib diisi.')
+      setErrorBanner('Isi nama lengkap pelanggan.')
       return
     }
     const check = normalizePhone(walkInPhone)
@@ -255,12 +261,10 @@ export default function KasirOutletPanel({ onBack }) {
       setWalkInResult(res)
       if (res.mode === 'manual') {
         setStatusBanner(
-          'Data Walk-In Manual tersimpan dengan status UNVERIFIED. Customer Hub TIDAK mengirim pesan WA keluar otomatis (Anti-Blokir Fonnte).'
+          'Pelanggan tersimpan sebagai "belum terverifikasi". Sistem tidak mengirim WhatsApp ke nomor yang diketik staf.'
         )
       } else {
-        setStatusBanner(
-          `QR Code Verifikasi Walk-In (${res.verification_code}) siap dipindai pelanggan!`
-        )
+        setStatusBanner('QR siap. Minta pelanggan memindai dan menekan Kirim di WhatsApp.')
       }
     } catch (err) {
       setErrorBanner(err.message)
@@ -270,479 +274,442 @@ export default function KasirOutletPanel({ onBack }) {
   }
 
   return (
-    <div className="dooz-portal-wrapper">
-      <div className="dooz-portal-container">
-        <div className="dooz-portal-topbar">
-          <div>
-            <span className="dooz-chip">🏪 Operasional Outlet DOOZ • 2 Level Akses Kasir & Audit Log</span>
-            <h1 className="dooz-portal-title">Mode Kasir Outlet (Online ↔ Offline)</h1>
-          </div>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            <button type="button" className="dooz-btn-secondary" onClick={handleLoadDemoCustomer}>
-              ⚡ Muat Data Member & QR Uji
+    <div className="dz-stack">
+      <div className="staff-section-head">
+        <div>
+          <span className="dz-eyebrow">Kasir outlet</span>
+          <h1 className="dz-title">Layani pelanggan</h1>
+        </div>
+        <button type="button" className="dz-btn dz-btn--ghost dz-btn--sm" onClick={handleLoadDemoCustomer}>
+          Muat data contoh
+        </button>
+      </div>
+
+      {/* Identitas staf: setiap pencarian & scan tercatat di riwayat akses */}
+      <div className="dz-panel staff-context">
+        <label className="dz-label" htmlFor="kasir-staff-id">
+          ID staf
+        </label>
+        <input
+          id="kasir-staff-id"
+          type="text"
+          className="dz-input--sm"
+          value={staffUserId}
+          onChange={(e) => setStaffUserId(e.target.value)}
+        />
+        <select className="dz-input--sm" value={staffOutletId} onChange={(e) => setStaffOutletId(e.target.value)}>
+          {OUTLET_LIST.map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        <span className="dz-small">Semua pencarian tercatat atas nama ID staf ini.</span>
+      </div>
+
+      {statusBanner && (
+        <div className="dz-banner" role="status">
+          <span>✓ {statusBanner}</span>
+          <button type="button" onClick={() => setStatusBanner('')} aria-label="Tutup">
+            ✕
+          </button>
+        </div>
+      )}
+      {errorBanner && (
+        <div className="dz-alert" role="alert">
+          {errorBanner}
+        </div>
+      )}
+
+      <div className="dz-tabs" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'level1'}
+          className={`dz-tab ${activeTab === 'level1' ? 'is-active' : ''}`}
+          onClick={() => setActiveTab('level1')}
+        >
+          1 · Cari nomor WA
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'level2'}
+          className={`dz-tab ${activeTab === 'level2' ? 'is-active' : ''}`}
+          onClick={() => setActiveTab('level2')}
+        >
+          2 · Scan Kartu Member
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'walkin'}
+          className={`dz-tab ${activeTab === 'walkin' ? 'is-active' : ''}`}
+          onClick={() => setActiveTab('walkin')}
+        >
+          Pelanggan baru
+        </button>
+      </div>
+
+      {/* LEVEL 1: cari dengan nomor WA lengkap → data dasar & tersamar */}
+      {activeTab === 'level1' && (
+        <div className="dz-card">
+          <h2 className="dz-subtitle">Cari dengan nomor WhatsApp lengkap</h2>
+          <p className="dz-muted" style={{ margin: '4px 0 14px' }}>
+            Hanya menampilkan data dasar: inisial nama, nomor tersamar, ukuran frame, dan 3 frame terakhir. Untuk data
+            lengkap & voucher, scan Kartu Member pelanggan.
+          </p>
+
+          <form onSubmit={handleLookupLevel1} className="manual-token-row" style={{ marginBottom: 16 }}>
+            <input
+              type="tel"
+              inputMode="tel"
+              placeholder="Nomor WA lengkap, mis. 081299887766"
+              value={lookupPhoneInput}
+              onChange={(e) => setLookupPhoneInput(e.target.value)}
+              required
+            />
+            <button type="submit" className="dz-btn dz-btn--orange" disabled={loadingLevel1}>
+              {loadingLevel1 ? 'Mencari...' : 'Cari'}
             </button>
-            {onBack && (
-              <button type="button" className="dooz-btn-outline" onClick={onBack}>
-                ← Kembali ke Try-On
-              </button>
-            )}
-          </div>
-        </div>
+          </form>
 
-        {/* Staff Context Bar */}
-        <div className="dooz-card" style={{ marginBottom: '16px', padding: '12px 16px' }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-              <label style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.7)' }}>
-                ID Staf Kasir (Tercatat di Audit Log):
-              </label>
-              <input
-                type="text"
-                value={staffUserId}
-                onChange={(e) => setStaffUserId(e.target.value)}
-                style={{ padding: '6px 10px', borderRadius: '8px', background: '#141418', color: '#fff', border: '1px solid rgba(255,255,255,0.15)' }}
-              />
-              <select
-                value={staffOutletId}
-                onChange={(e) => setStaffOutletId(e.target.value)}
-                style={{ padding: '6px 10px', borderRadius: '8px', background: '#141418', color: '#fff', border: '1px solid rgba(255,255,255,0.15)' }}
-              >
-                {OUTLET_LIST.map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
+          {level1Result && (
+            <div className="dz-panel">
+              <div className="dz-row" style={{ justifyContent: 'space-between' }}>
+                <div>
+                  <span className="dz-chip">Data dasar</span>
+                  <h3 style={{ marginTop: 6 }}>
+                    {level1Result.first_name_initial} · {level1Result.member_code}
+                  </h3>
+                </div>
+                <button type="button" className="dz-btn dz-btn--outline dz-btn--sm" onClick={() => setActiveTab('level2')}>
+                  Scan Kartu Member →
+                </button>
+              </div>
+
+              <div className="dz-kv">
+                <div className="dz-kv__item">
+                  <span>Nama</span>
+                  <strong>{level1Result.first_name_initial}</strong>
+                </div>
+                <div className="dz-kv__item">
+                  <span>WhatsApp</span>
+                  <strong>{level1Result.phone_masked}</strong>
+                </div>
+                <div className="dz-kv__item">
+                  <span>Ukuran frame</span>
+                  <strong>
+                    {level1Result.latest_measurement
+                      ? `${level1Result.latest_measurement.frame_width_mm} mm · ${level1Result.latest_measurement.size_category}`
+                      : 'Belum diukur'}
+                  </strong>
+                </div>
+                <div className="dz-kv__item">
+                  <span>Terkunci</span>
+                  <strong style={{ color: 'var(--dz-danger)', fontSize: 13 }}>
+                    Kota, voucher, kunjungan & resep — perlu scan Kartu Member
+                  </strong>
+                </div>
+              </div>
+
+              <h4 style={{ margin: '4px 0 8px' }}>3 frame terakhir yang dicoba</h4>
+              {level1Result.recent_tried_frames && level1Result.recent_tried_frames.length > 0 ? (
+                <ul className="dz-list">
+                  {level1Result.recent_tried_frames.map((ev) => (
+                    <li key={ev.id} className="dz-list-item">
+                      <div>
+                        <strong>{ev.payload?.frame_name || ev.payload?.frame_sku}</strong>
+                        <span className="item-sub">
+                          {ev.payload?.frame_sku} · {ev.payload?.frame_width_mm} mm · {ev.payload?.size_category}
+                        </span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="portal-empty">Belum ada frame yang dicoba.</p>
+              )}
             </div>
-            <span className="dooz-chip">Role: KASIR (Export CSV Massal Diblokir)</span>
-          </div>
+          )}
         </div>
+      )}
 
-        {statusBanner && (
-          <div className="dooz-status-banner">
-            <span>✓ {statusBanner}</span>
-            <button type="button" onClick={() => setStatusBanner('')}>✕</button>
-          </div>
-        )}
+      {/* LEVEL 2: scan QR Kartu Member (token berputar bertanda tangan) → data lengkap & tindakan */}
+      {activeTab === 'level2' && (
+        <div className="dz-card">
+          <h2 className="dz-subtitle">Scan Kartu Member</h2>
+          <p className="dz-muted" style={{ margin: '4px 0 14px' }}>
+            Minta pelanggan membuka <strong>Kartu Member Saya</strong> di HP-nya, lalu pindai QR-nya untuk membuka data
+            lengkap, klaim voucher, dan mencatat kunjungan.
+          </p>
 
-        {errorBanner && (
-          <div className="dooz-error-alert">
-            <span>⚠ {errorBanner}</span>
-          </div>
-        )}
+          <form onSubmit={handleScanQRLevel2} className="manual-token-row" style={{ marginBottom: 16 }}>
+            <input
+              type="text"
+              placeholder="Hasil scan QR Kartu Member"
+              value={qrTokenInput}
+              onChange={(e) => setQrTokenInput(e.target.value)}
+              required
+            />
+            <button type="submit" className="dz-btn dz-btn--orange" disabled={loadingLevel2}>
+              {loadingLevel2 ? 'Memeriksa...' : 'Buka data'}
+            </button>
+          </form>
 
-        {/* Mode Tabs */}
-        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            className={activeTab === 'level1' ? 'dooz-btn-primary' : 'dooz-btn-secondary'}
-            onClick={() => setActiveTab('level1')}
-          >
-            🔎 Level 1: Cari Nomor WA Lengkap (Data Dasar & Tersamar)
-          </button>
-          <button
-            type="button"
-            className={activeTab === 'level2' ? 'dooz-btn-primary' : 'dooz-btn-secondary'}
-            onClick={() => setActiveTab('level2')}
-          >
-            📲 Level 2: Scan QR Dinamis Customer (Profil Penuh & Klaim Voucher)
-          </button>
-          <button
-            type="button"
-            className={activeTab === 'walkin' ? 'dooz-btn-primary' : 'dooz-btn-secondary'}
-            onClick={() => setActiveTab('walkin')}
-          >
-            🚶 Walk-In Baru di Outlet (QR wa.me vs Input Manual)
-          </button>
-        </div>
+          {level2Result && (
+            <div className="dz-stack">
+              <div className="dz-kv" style={{ margin: 0 }}>
+                <div className="dz-kv__item">
+                  <span>Nama & ID member</span>
+                  <strong>
+                    {level2Result.contact?.full_name} ({level2Result.contact?.member_code})
+                  </strong>
+                </div>
+                <div className="dz-kv__item">
+                  <span>Kota & WhatsApp</span>
+                  <strong>
+                    {level2Result.contact?.city_regency} · {level2Result.contact?.phone_masked}
+                  </strong>
+                </div>
+                <div className="dz-kv__item">
+                  <span>Ukuran frame</span>
+                  <strong>
+                    {level2Result.latest_measurement
+                      ? `${level2Result.latest_measurement.frame_width_mm} mm · ${level2Result.latest_measurement.size_category} · jembatan ${level2Result.latest_measurement.bridge_mm || 18} mm`
+                      : '138 mm · M'}
+                  </strong>
+                </div>
+                <div className="dz-kv__item">
+                  <span>Status WhatsApp</span>
+                  <strong style={{ color: 'var(--dz-success)' }}>
+                    {level2Result.contact?.verification_status === 'verified'
+                      ? '✓ Terverifikasi'
+                      : level2Result.contact?.verification_status || '-'}
+                  </strong>
+                </div>
+              </div>
 
-        {/* TAB 1: LEVEL 1 LOOKUP */}
-        {activeTab === 'level1' && (
-          <div className="dooz-card">
-            <h2>🔎 Akses Kasir Level 1 — Ketik Nomor WhatsApp Lengkap</h2>
-            <p className="portal-muted" style={{ marginBottom: '14px' }}>
-              Sesuai matriks hak akses PRD, staf kasir hanya dapat mencari dengan <strong>Nomor WA Lengkap</strong> (tidak bisa mencari nama sebagian). Hanya menampilkan inisial nama, nomor WA tersamar, ukuran frame, dan 3 frame terakhir yang dicoba.
-            </p>
-
-            <form onSubmit={handleLookupLevel1} className="manual-token-row" style={{ marginBottom: '16px' }}>
-              <input
-                type="text"
-                placeholder="Ketik Nomor WA Lengkap (contoh: 081299887766)"
-                value={lookupPhoneInput}
-                onChange={(e) => setLookupPhoneInput(e.target.value)}
-                required
-              />
-              <button type="submit" className="dooz-btn-primary" disabled={loadingLevel1}>
-                {loadingLevel1 ? 'Mencari...' : 'Cari Member (Level 1)'}
-              </button>
-            </form>
-
-            {level1Result && (
-              <div className="recycled-gate-card" style={{ padding: '16px', borderRadius: '12px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap' }}>
-                  <div>
-                    <span className="dooz-chip">LEVEL 1 — DATA DASAR & TERSAMAR</span>
-                    <h3 style={{ marginTop: '4px' }}>{level1Result.first_name_initial} • {level1Result.member_code}</h3>
-                  </div>
+              <div className="dz-panel">
+                <h3 style={{ fontSize: 15, marginBottom: 10 }}>Catat tindakan</h3>
+                <div className="dz-grid" style={{ gap: 10, marginBottom: 10 }}>
+                  <input
+                    type="text"
+                    placeholder="Catatan (mis. cek mata, setel nosepad)"
+                    value={level2ActionNotes}
+                    onChange={(e) => setLevel2ActionNotes(e.target.value)}
+                  />
+                  <input
+                    type="text"
+                    placeholder="Kode voucher"
+                    value={level2VoucherCode}
+                    onChange={(e) => setLevel2VoucherCode(e.target.value)}
+                  />
+                  <select value={level2TriedSku} onChange={(e) => setLevel2TriedSku(e.target.value)}>
+                    {CATALOG_FRAMES_DEFAULT.map((f) => (
+                      <option key={f.sku} value={f.sku}>
+                        {f.name} ({f.size_category})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="dz-row">
                   <button
                     type="button"
-                    className="dooz-btn-primary"
-                    onClick={() => setActiveTab('level2')}
+                    className="dz-btn dz-btn--orange"
+                    disabled={submittingAction}
+                    onClick={() => handleRecordLevel2Action('store_visit')}
                   >
-                    🔓 Buka Level 2 (Scan QR Customer) →
+                    Catat kunjungan
+                  </button>
+                  <button
+                    type="button"
+                    className="dz-btn dz-btn--outline"
+                    disabled={submittingAction}
+                    onClick={() => handleRecordLevel2Action('voucher_claimed')}
+                  >
+                    Klaim voucher
+                  </button>
+                  <button
+                    type="button"
+                    className="dz-btn dz-btn--outline"
+                    disabled={submittingAction}
+                    onClick={() => handleRecordLevel2Action('frame_tried')}
+                  >
+                    Tambah frame dicoba
                   </button>
                 </div>
+              </div>
 
-                <div className="recycled-basic-summary">
-                  <div className="basic-item">
-                    <span>Nama Depan / Inisial</span>
-                    <strong>{level1Result.first_name_initial}</strong>
-                  </div>
-                  <div className="basic-item">
-                    <span>Nomor WA Tersamar</span>
-                    <strong>{level1Result.phone_masked}</strong>
-                  </div>
-                  <div className="basic-item">
-                    <span>Ukuran Frame Pelanggan</span>
-                    <strong>
-                      {level1Result.latest_measurement
-                        ? `${level1Result.latest_measurement.frame_width_mm} mm · Size ${level1Result.latest_measurement.size_category}`
-                        : 'Belum diukur'}
-                    </strong>
-                  </div>
-                  <div className="basic-item">
-                    <span>Data yang Diblokir di Level 1</span>
-                    <strong style={{ color: '#f87171', fontSize: '0.78rem' }}>
-                      🔒 Kota Detail, Klaim Voucher, Riwayat Kunjungan & Resep
-                    </strong>
-                  </div>
-                </div>
-
-                <h4 style={{ marginTop: '14px', marginBottom: '8px', fontSize: '0.9rem' }}>
-                  👓 Maksimal 3 Frame Terakhir yang Dicoba Pelanggan:
-                </h4>
-                {level1Result.recent_tried_frames && level1Result.recent_tried_frames.length > 0 ? (
-                  <ul className="portal-item-list">
-                    {level1Result.recent_tried_frames.map((ev) => (
-                      <li key={ev.id} className="portal-item">
+              <div className="dooz-portal-middle-grid">
+                <div className="dz-card dz-card--plain">
+                  <h3>Frame dicoba ({level2Result.tried_frames?.length || 0})</h3>
+                  <ul className="dz-list">
+                    {(level2Result.tried_frames || []).map((ev) => (
+                      <li key={ev.id} className="dz-list-item">
                         <div>
                           <strong>{ev.payload?.frame_name || ev.payload?.frame_sku}</strong>
                           <span className="item-sub">
-                            SKU: {ev.payload?.frame_sku} • {ev.payload?.frame_width_mm} mm (Size {ev.payload?.size_category})
+                            {ev.payload?.frame_sku} · {ev.payload?.frame_width_mm} mm · {ev.payload?.size_category}
                           </span>
                         </div>
-                        <span className="dooz-chip">{ev.src || 'tryon'}</span>
                       </li>
                     ))}
                   </ul>
-                ) : (
-                  <p className="portal-empty">Belum ada riwayat frame yang dicoba.</p>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* TAB 2: LEVEL 2 QR SCAN */}
-        {activeTab === 'level2' && (
-          <div className="dooz-card">
-            <h2>📲 Akses Kasir Level 2 — Scan QR Dinamis dari HP Customer</h2>
-            <p className="portal-muted" style={{ marginBottom: '14px' }}>
-              Minta pelanggan membuka <strong>Portal "Data Saya"</strong> di HP mereka lalu pindai <strong>Kartu Member QR Dinamis (`DQR1...`)</strong> untuk membuka profil penuh, klaim voucher, dan mencatat kunjungan toko.
-            </p>
-
-            <form onSubmit={handleScanQRLevel2} className="manual-token-row" style={{ marginBottom: '16px' }}>
-              <input
-                type="text"
-                placeholder="Hasil Scan QR Token Dinamis (contoh: DQR1...)"
-                value={qrTokenInput}
-                onChange={(e) => setQrTokenInput(e.target.value)}
-                required
-              />
-              <button type="submit" className="dooz-btn-primary" disabled={loadingLevel2}>
-                {loadingLevel2 ? 'Memverifikasi QR...' : 'Verifikasi QR Level 2'}
-              </button>
-            </form>
-
-            {level2Result && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div className="recycled-basic-summary">
-                  <div className="basic-item">
-                    <span>Nama Lengkap & ID Member</span>
-                    <strong>{level2Result.contact?.full_name} ({level2Result.contact?.member_code})</strong>
-                  </div>
-                  <div className="basic-item">
-                    <span>Kota / Kabupaten & WA</span>
-                    <strong>{level2Result.contact?.city_regency} • {level2Result.contact?.phone_masked}</strong>
-                  </div>
-                  <div className="basic-item">
-                    <span>Ukuran Frame & Detail (mm)</span>
-                    <strong>
-                      {level2Result.latest_measurement
-                        ? `${level2Result.latest_measurement.frame_width_mm} mm · Size ${level2Result.latest_measurement.size_category} (Bridge ${level2Result.latest_measurement.bridge_mm || 18}mm)`
-                        : '138 mm · Size M'}
-                    </strong>
-                  </div>
-                  <div className="basic-item">
-                    <span>Status Verifikasi</span>
-                    <strong style={{ color: '#4ade80' }}>✓ {level2Result.contact?.verification_status?.toUpperCase()} (Level 2 Penuh)</strong>
-                  </div>
                 </div>
-
-                {/* Level 2 Staff Actions */}
-                <div style={{ padding: '14px', borderRadius: '12px', background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.3)' }}>
-                  <h3 style={{ fontSize: '0.95rem', marginBottom: '10px' }}>⚡ Tindakan Kasir Level 2 (Tercatat di Audit Log)</h3>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '10px', marginBottom: '10px' }}>
-                    <input
-                      type="text"
-                      placeholder="Catatan kunjungan / pemeriksaan mata..."
-                      value={level2ActionNotes}
-                      onChange={(e) => setLevel2ActionNotes(e.target.value)}
-                      style={{ padding: '8px 10px', borderRadius: '8px', background: '#141418', color: '#fff', border: '1px solid rgba(255,255,255,0.15)' }}
-                    />
-                    <input
-                      type="text"
-                      placeholder="Kode Voucher Klaim..."
-                      value={level2VoucherCode}
-                      onChange={(e) => setLevel2VoucherCode(e.target.value)}
-                      style={{ padding: '8px 10px', borderRadius: '8px', background: '#141418', color: '#fff', border: '1px solid rgba(255,255,255,0.15)' }}
-                    />
-                    <select
-                      value={level2TriedSku}
-                      onChange={(e) => setLevel2TriedSku(e.target.value)}
-                      style={{ padding: '8px 10px', borderRadius: '8px', background: '#141418', color: '#fff', border: '1px solid rgba(255,255,255,0.15)' }}
-                    >
-                      {CATALOG_FRAMES_DEFAULT.map((f) => (
-                        <option key={f.sku} value={f.sku}>
-                          {f.sku} — {f.name} (Size {f.size_category})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                    <button
-                      type="button"
-                      className="dooz-btn-primary"
-                      disabled={submittingAction}
-                      onClick={() => handleRecordLevel2Action('store_visit')}
-                    >
-                      🏪 Catat Kunjungan Outlet (`store_visit`)
-                    </button>
-                    <button
-                      type="button"
-                      className="dooz-btn-secondary"
-                      disabled={submittingAction}
-                      onClick={() => handleRecordLevel2Action('voucher_claimed')}
-                    >
-                      🎟️ Klaim Voucher Member (`voucher_claimed`)
-                    </button>
-                    <button
-                      type="button"
-                      className="dooz-btn-secondary"
-                      disabled={submittingAction}
-                      onClick={() => handleRecordLevel2Action('frame_tried')}
-                    >
-                      👓 Tambah Frame Dicoba di Toko (`frame_tried`)
-                    </button>
-                  </div>
+                <div className="dz-card dz-card--plain">
+                  <h3>Voucher ({level2Result.vouchers?.length || 0})</h3>
+                  <ul className="dz-list">
+                    {(level2Result.vouchers || []).map((v) => (
+                      <li key={v.id} className="dz-list-item">
+                        <div>
+                          <strong className="voucher-code">{v.payload?.voucher_code}</strong>
+                          <span className="item-sub">{v.payload?.notes}</span>
+                        </div>
+                        <span className="voucher-amount">Aktif</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-
-                {/* Full Lists */}
-                <div className="dooz-portal-middle-grid">
-                  <div className="dooz-card">
-                    <h3>👓 Seluruh Riwayat Try-On ({level2Result.tried_frames?.length || 0})</h3>
-                    <ul className="portal-item-list">
-                      {(level2Result.tried_frames || []).map((ev) => (
-                        <li key={ev.id} className="portal-item">
-                          <div>
-                            <strong>{ev.payload?.frame_name || ev.payload?.frame_sku}</strong>
-                            <span className="item-sub">
-                              {ev.payload?.frame_sku} • {ev.payload?.frame_width_mm} mm (Size {ev.payload?.size_category})
-                            </span>
-                          </div>
-                          <span className="item-date">{ev.src}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  <div className="dooz-card">
-                    <h3>🎟️ Voucher Member ({level2Result.vouchers?.length || 0})</h3>
-                    <ul className="portal-item-list">
-                      {(level2Result.vouchers || []).map((v) => (
-                        <li key={v.id} className="portal-item voucher-item">
-                          <div>
-                            <strong className="voucher-code">{v.payload?.voucher_code}</strong>
-                            <span className="item-sub">{v.payload?.notes}</span>
-                          </div>
-                          <span className="voucher-amount">Aktif</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  <div className="dooz-card">
-                    <h3>🏪 Riwayat Kunjungan Outlet ({level2Result.store_visits?.length || 0})</h3>
-                    <ul className="portal-item-list">
-                      {(level2Result.store_visits || []).map((vis) => (
-                        <li key={vis.id} className="portal-item">
-                          <div>
-                            <strong>{vis.payload?.outlet_id}</strong>
-                            <span className="item-sub">{vis.payload?.notes}</span>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+                <div className="dz-card dz-card--plain">
+                  <h3>Kunjungan ({level2Result.store_visits?.length || 0})</h3>
+                  <ul className="dz-list">
+                    {(level2Result.store_visits || []).map((vis) => (
+                      <li key={vis.id} className="dz-list-item">
+                        <div>
+                          <strong>{vis.payload?.outlet_id}</strong>
+                          <span className="item-sub">{vis.payload?.notes}</span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               </div>
-            )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* PELANGGAN BARU: QR WhatsApp (terverifikasi) atau isi manual (belum terverifikasi) */}
+      {activeTab === 'walkin' && (
+        <div className="dz-card">
+          <h2 className="dz-subtitle">Daftarkan pelanggan baru</h2>
+          <p className="dz-muted" style={{ margin: '4px 0 14px' }}>
+            Paling baik: tampilkan QR WhatsApp, pelanggan memindai dan menekan Kirim — nomornya langsung terverifikasi.
+            Kalau pelanggan tidak membawa HP, isi manual (status belum terverifikasi).
+          </p>
+
+          <div className="dz-tabs" style={{ marginBottom: 14 }}>
+            <button
+              type="button"
+              className={`dz-tab ${walkInMode === 'qr_wa' ? 'is-active' : ''}`}
+              onClick={() => {
+                setWalkInMode('qr_wa')
+                setWalkInResult(null)
+              }}
+            >
+              QR WhatsApp (disarankan)
+            </button>
+            <button
+              type="button"
+              className={`dz-tab ${walkInMode === 'manual' ? 'is-active' : ''}`}
+              onClick={() => {
+                setWalkInMode('manual')
+                setWalkInResult(null)
+              }}
+            >
+              Isi manual
+            </button>
           </div>
-        )}
 
-        {/* TAB 3: WALK-IN OUTLET REGISTRATION */}
-        {activeTab === 'walkin' && (
-          <div className="dooz-card">
-            <h2>🚶 Pendaftaran Pelanggan Walk-In Baru di Outlet</h2>
-            <p className="portal-muted" style={{ marginBottom: '14px' }}>
-              Pilih <strong>Rekomendasi Utama (QR `wa.me` Kode `DZ-xxxx`)</strong> agar pelanggan memindai QR di layar kasir dan mengirim WA sendiri (langsung <code>verified</code> & anti-blokir Fonnte), atau gunakan <strong>Fallback Input Manual (`unverified`)</strong> jika pelanggan tidak membawa HP.
-            </p>
-
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '14px', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                className={walkInMode === 'qr_wa' ? 'dooz-btn-primary' : 'dooz-btn-secondary'}
-                onClick={() => {
-                  setWalkInMode('qr_wa')
-                  setWalkInResult(null)
-                }}
-              >
-                ✅ Rekomendasi Utama: Tampilkan QR `wa.me` (Otomatis Verified 100%)
-              </button>
-              <button
-                type="button"
-                className={walkInMode === 'manual' ? 'dooz-btn-primary' : 'dooz-btn-secondary'}
-                onClick={() => {
-                  setWalkInMode('manual')
-                  setWalkInResult(null)
-                }}
-              >
-                📝 Fallback Input Manual Staf (Status `unverified` • Tanpa Kirim WA Keluar)
+          <form onSubmit={handleWalkInSubmit} className="dz-form">
+            <div className="dz-grid" style={{ gap: 12 }}>
+              <div className="dz-field">
+                <label>Nama lengkap</label>
+                <input type="text" value={walkInName} onChange={(e) => setWalkInName(e.target.value)} required />
+              </div>
+              <div className="dz-field">
+                <label>No. WhatsApp</label>
+                <input
+                  type="tel"
+                  placeholder="08xxxxxxxxxx"
+                  value={walkInPhone}
+                  onChange={(e) => setWalkInPhone(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="dz-field">
+                <label>Kota</label>
+                <select value={walkInCity} onChange={(e) => setWalkInCity(e.target.value)}>
+                  {INDONESIA_CITIES.slice(0, 35).map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="dz-field">
+                <label>Lebar frame hasil ukur (mm)</label>
+                <input
+                  type="number"
+                  min={115}
+                  max={165}
+                  value={walkInWidthMm}
+                  onChange={(e) => setWalkInWidthMm(Number(e.target.value))}
+                />
+              </div>
+              <div className="dz-field">
+                <label>Frame yang dicoba</label>
+                <select value={walkInSku} onChange={(e) => setWalkInSku(e.target.value)}>
+                  {CATALOG_FRAMES_DEFAULT.map((f) => (
+                    <option key={f.sku} value={f.sku}>
+                      {f.name} ({f.size_category})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="dz-actions">
+              <button type="submit" className="dz-btn dz-btn--orange" disabled={submittingWalkIn}>
+                {submittingWalkIn ? 'Memproses...' : walkInMode === 'qr_wa' ? 'Tampilkan QR WhatsApp' : 'Simpan pelanggan'}
               </button>
             </div>
+          </form>
 
-            <form onSubmit={handleWalkInSubmit} className="dooz-lead-form">
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
-                <div className="dooz-field">
-                  <label>Nama Lengkap Pelanggan *</label>
-                  <input
-                    type="text"
-                    placeholder="Contoh: Andi Pratama"
-                    value={walkInName}
-                    onChange={(e) => setWalkInName(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="dooz-field">
-                  <label>Nomor WhatsApp *</label>
-                  <input
-                    type="tel"
-                    placeholder="Contoh: 081234567890"
-                    value={walkInPhone}
-                    onChange={(e) => setWalkInPhone(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="dooz-field">
-                  <label>Kota / Kabupaten Domisili *</label>
-                  <select
-                    value={walkInCity}
-                    onChange={(e) => setWalkInCity(e.target.value)}
-                    style={{ padding: '10px 12px', borderRadius: '10px', background: '#141418', color: '#fff', border: '1px solid rgba(255,255,255,0.15)' }}
-                  >
-                    {INDONESIA_CITIES.slice(0, 35).map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="dooz-field">
-                  <label>Hasil Ukur Lebar Frame di Toko (mm)</label>
-                  <input
-                    type="number"
-                    min={115}
-                    max={165}
-                    value={walkInWidthMm}
-                    onChange={(e) => setWalkInWidthMm(Number(e.target.value))}
-                  />
-                </div>
-                <div className="dooz-field">
-                  <label>Frame yang Dicoba di Toko</label>
-                  <select
-                    value={walkInSku}
-                    onChange={(e) => setWalkInSku(e.target.value)}
-                    style={{ padding: '10px 12px', borderRadius: '10px', background: '#141418', color: '#fff', border: '1px solid rgba(255,255,255,0.15)' }}
-                  >
-                    {CATALOG_FRAMES_DEFAULT.map((f) => (
-                      <option key={f.sku} value={f.sku}>
-                        {f.sku} — {f.name} (Size {f.size_category})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="dooz-form-actions" style={{ marginTop: '14px' }}>
-                <button type="submit" className="dooz-btn-primary" disabled={submittingWalkIn}>
-                  {submittingWalkIn
-                    ? 'Memproses...'
-                    : walkInMode === 'qr_wa'
-                      ? '📲 Buat QR Verifikasi Walk-In (Kode DZ-xxxx)'
-                      : '💾 Simpan Walk-In Manual (Status Unverified)'}
-                </button>
-              </div>
-            </form>
-
-            {walkInResult && (
-              <div style={{ marginTop: '16px', padding: '16px', borderRadius: '12px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)' }}>
-                {walkInResult.mode === 'qr_wa' ? (
-                  <div style={{ display: 'flex', gap: '20px', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <div className="qr-svg-frame">
-                      <WalkInQRMatrixSVG url={walkInResult.wa_me_url} />
-                    </div>
-                    <div style={{ flex: 1, minWidth: '240px' }}>
-                      <span className="dooz-chip">SCAN DI HP PELANGGAN • USER-INITIATED WA</span>
-                      <h3 style={{ margin: '6px 0' }}>Kode Verifikasi: {walkInResult.verification_code}</h3>
-                      <p className="portal-muted" style={{ marginBottom: '10px' }}>
-                        Pelanggan cukup memindai QR ini dan menekan <strong>Send</strong> di WhatsApp mereka. Sistem Fonnte otomatis memverifikasi nomor pengirim asli dan mengirimkan Kartu Member Digital.
-                      </p>
-                      <a
-                        href={walkInResult.wa_me_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="dooz-wa-cta-button"
-                      >
-                        💬 Buka Tautan wa.me ({walkInResult.verification_code})
-                      </a>
-                    </div>
+          {walkInResult && (
+            <div className="dz-panel" style={{ marginTop: 16 }}>
+              {walkInResult.mode === 'qr_wa' ? (
+                <div className="dz-row" style={{ gap: 20, alignItems: 'center' }}>
+                  <div className="qr-svg-frame">
+                    <WalkInQRMatrixSVG url={walkInResult.wa_me_url} />
                   </div>
-                ) : (
-                  <div>
-                    <span className="dooz-chip warning">STATUS: UNVERIFIED (INPUT MANUAL STAF)</span>
-                    <h3 style={{ margin: '6px 0' }}>
-                      Member Tersimpan: {walkInResult.contact?.full_name} ({walkInResult.contact?.member_code})
-                    </h3>
-                    <p className="portal-muted">
-                      Outbound WA Sent: <strong>{String(walkInResult.outbound_wa_sent)}</strong> — Sesuai aturan anti-blokir Fonnte, Customer Hub tidak mengirim pesan WA keluar ke nomor yang diinput manual oleh staf.
+                  <div style={{ flex: 1, minWidth: 220 }}>
+                    <h3 style={{ margin: '0 0 6px' }}>Minta pelanggan memindai QR ini</h3>
+                    <p className="dz-muted" style={{ marginBottom: 10 }}>
+                      Pesan WhatsApp sudah terisi. Setelah pelanggan menekan Kirim, nomornya terverifikasi dan Kartu
+                      Member dikirim otomatis.
                     </p>
+                    <a href={walkInResult.wa_me_url} target="_blank" rel="noopener noreferrer" className="dz-btn dz-btn--wa">
+                      Buka WhatsApp
+                    </a>
                   </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+                </div>
+              ) : (
+                <div>
+                  <span className="dz-chip dz-chip--warning">Belum terverifikasi</span>
+                  <h3 style={{ margin: '6px 0' }}>
+                    {walkInResult.contact?.full_name} ({walkInResult.contact?.member_code}) tersimpan
+                  </h3>
+                  <p className="dz-muted">
+                    Sistem tidak mengirim WhatsApp ke nomor yang diketik staf. Pelanggan bisa verifikasi nanti dengan
+                    memindai QR WhatsApp.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

@@ -20,9 +20,11 @@ func main() {
 	fonnteToken := envOrDefault("FONNTE_API_TOKEN", "mock-fonnte-token")
 	officialWA := envOrDefault("DOOZ_OFFICIAL_WA", "6281122334455")
 	portalURL := envOrDefault("DOOZ_PORTAL_URL", "https://crm.dooz.id")
+	staticDir := envOrDefault("HUB_STATIC_DIR", "")
 
 	flag.StringVar(&port, "port", port, "HTTP listen port")
 	flag.StringVar(&dbPath, "db", dbPath, "Path to persistent JSON/SQLite-compatible store")
+	flag.StringVar(&staticDir, "static", staticDir, "Folder hasil build web (dist/) untuk rute /, /kartu-member dan /staf/*")
 	flag.Parse()
 
 	signer := hub.NewSecuritySigner(hmacSecret)
@@ -44,12 +46,13 @@ func main() {
 		FonnteDeviceID:   deviceID,
 		OfficialWANumber: officialWA,
 		PortalBaseURL:    portalURL,
+		StaticDir:        staticDir,
 		WebhookRateLimit: 30,
 		RateLimitWindow:  time.Minute,
 	})
 
 	addr := fmt.Sprintf("0.0.0.0:%s", port)
-	log.Printf("[DOOZ Customer Hub] listening on %s (db=%s, device=%s)", addr, dbPath, deviceID)
+	log.Printf("[DOOZ Customer Hub] listening on %s (db=%s, device=%s, static=%q)", addr, dbPath, deviceID, staticDir)
 	if err := http.ListenAndServe(addr, srv.Handler()); err != nil {
 		log.Fatalf("server exited: %v", err)
 	}

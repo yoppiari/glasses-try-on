@@ -159,7 +159,7 @@ func TestEndToEndCustomerHubFlow(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("webhook verify status = %d, body = %s", resp.StatusCode, body)
 	}
-	if strings.Contains(body, "token=") || strings.Contains(body, "data-saya") {
+	if strings.Contains(body, "token=") || strings.Contains(body, "kartu-member") {
 		t.Fatalf("security violation: webhook HTTP response must NEVER contain magic link: %s", body)
 	}
 
@@ -464,7 +464,6 @@ func doJSONRequest(t *testing.T, url, method string, payload any, headers map[st
 	return resp, buf.String()
 }
 
-
 func TestCaptureSDKAndPortalWebEndpoints(t *testing.T) {
 	srv := NewServer(ServerConfig{})
 	ts := httptest.NewServer(srv.Handler())
@@ -476,16 +475,16 @@ func TestCaptureSDKAndPortalWebEndpoints(t *testing.T) {
 		t.Fatalf("expected /sdk/dooz-capture.js to serve DoozCaptureSDK, got %d", resp.StatusCode)
 	}
 
-	// 2. Portal Web Page (/data-saya) with strict Referrer-Policy: no-referrer
-	resp, body = doJSONRequest(t, ts.URL+"/data-saya", http.MethodGet, nil, nil)
+	// 2. Kartu Member Saya (/kartu-member) with strict Referrer-Policy: no-referrer
+	resp, body = doJSONRequest(t, ts.URL+"/kartu-member", http.MethodGet, nil, nil)
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("expected 200 on /data-saya, got %d", resp.StatusCode)
+		t.Fatalf("expected 200 on /kartu-member, got %d", resp.StatusCode)
 	}
 	if got := resp.Header.Get("Referrer-Policy"); got != "no-referrer" {
-		t.Fatalf("expected Referrer-Policy: no-referrer on /data-saya, got %q", got)
+		t.Fatalf("expected Referrer-Policy: no-referrer on /kartu-member, got %q", got)
 	}
 	if !strings.Contains(body, `name="referrer" content="no-referrer"`) {
-		t.Fatalf("expected meta referrer no-referrer in /data-saya HTML")
+		t.Fatalf("expected meta referrer no-referrer in /kartu-member HTML")
 	}
 
 	// 3. Anti-spam Honeypot returns uniform 200 OK response without saving contact to store
@@ -985,8 +984,12 @@ func TestCrmDashboardKasirLevel2ActionsAndObsLiveCounter(t *testing.T) {
 		t.Fatalf("OBS Live Counter must mask name as R*** and never leak full name/phone: %s", body)
 	}
 
-	resp, htmlBody := doJSONRequest(t, ts.URL+"/live-counter", http.MethodGet, nil, nil)
-	if resp.StatusCode != http.StatusOK || !strings.Contains(htmlBody, "DOOZ LIVE COUNTER") {
+	// Link lama /live-counter dialihkan ke overlay baru /staf/live (diikuti otomatis oleh client)
+	resp, htmlBody := doJSONRequest(t, ts.URL+"/live-counter?sesi=20261116", http.MethodGet, nil, nil)
+	if resp.StatusCode != http.StatusOK || !strings.Contains(htmlBody, "LIVE Kacamata DOOZ") {
 		t.Fatalf("GET /live-counter HTML failed: %d", resp.StatusCode)
+	}
+	if resp.Request.URL.Path != "/staf/live" || resp.Request.URL.Query().Get("sesi") != "20261116" {
+		t.Fatalf("expected /live-counter to redirect to /staf/live keeping query, got %s", resp.Request.URL.String())
 	}
 }

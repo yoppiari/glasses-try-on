@@ -113,14 +113,14 @@ type ReplyQueue struct {
 	minDelay time.Duration
 	maxDelay time.Duration
 
-	mu              sync.Mutex
-	inboundSenders  map[string]time.Time // phone_normalized -> last inbound timestamp
-	history         []OutboundRecord
-	queueCh         chan OutboundRecord
-	pendingCount    int
-	wg              sync.WaitGroup
-	stopOnce        sync.Once
-	stopCh          chan struct{}
+	mu             sync.Mutex
+	inboundSenders map[string]time.Time // phone_normalized -> last inbound timestamp
+	history        []OutboundRecord
+	queueCh        chan OutboundRecord
+	pendingCount   int
+	wg             sync.WaitGroup
+	stopOnce       sync.Once
+	stopCh         chan struct{}
 }
 
 func NewReplyQueue(provider WhatsAppProvider, minDelay, maxDelay time.Duration) *ReplyQueue {
@@ -302,9 +302,9 @@ func FormatVerificationReply(memberCode, sizeSummary, magicLinkURL string, requi
 		sb.WriteString(fmt.Sprintf("Ukuran Frame Dasar: *%s*\n", sizeSummary))
 	}
 	if requiresNameConfirm {
-		sb.WriteString("\n⚠️ _Akun ini tidak aktif lebih dari 6 bulan. Demi keamanan nomor daur ulang, silakan konfirmasi nama lengkap terdaftar saat membuka tautan berikut:_\n")
+		sb.WriteString("\n⚠️ _Akun ini tidak aktif lebih dari 6 bulan. Demi keamanan, kamu akan diminta mengetik nama lengkap saat membuka Kartu Member Saya:_\n")
 	} else {
-		sb.WriteString("\nKlik tautan sekali pakai berikut (berlaku 15 menit) untuk membuka Portal *Data Saya* & Kartu QR Member:\n")
+		sb.WriteString("\nBuka *Kartu Member Saya* lewat tautan sekali pakai berikut (berlaku 15 menit):\n")
 	}
 	sb.WriteString(magicLinkURL)
 	sb.WriteString(AntiPhishingFooter)

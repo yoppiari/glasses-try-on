@@ -151,6 +151,32 @@ npm run build
 npm run preview
 ```
 
+### Kacamata DOOZ — rute aplikasi
+
+Semua layar memakai Brand Guidelines Kacamata DOOZ v1.0 (sama dengan mini app Ukur Frame:
+ivory `#FFF8F0`, ink `#252A2D`, oranye `#EC6702`, Inter + Noto Serif Display, wordmark 2 baris).
+
+| Aplikasi | Rute | Isi |
+|----------|------|-----|
+| Customer | `/` | Coba Kacamata (filter otomatis dari `?size=&width_mm=` hasil Ukur Frame) → **Simpan pilihan saya** → Nama, No WA, Kota → **Buka WhatsApp** |
+| Customer | `/kartu-member` | Kartu Member Saya (dibuka lewat link dari WhatsApp; token ditukar lewat POST) |
+| Staf | `/staf/kasir` | Kasir: 1 · cari nomor WA lengkap (data tersamar), 2 · scan Kartu Member (data lengkap), pelanggan baru |
+| Staf | `/staf/laporan` | Laporan, link kampanye bertanda tangan, riwayat akses (audit log), link overlay OBS Live |
+| Staf | `/staf/katalog` | Tabel ukuran XS–XL & model frame |
+| Staf | `/staf/live` | Overlay OBS Live (latar transparan, nama tersamar) |
+
+Link lama tetap jalan dan dialihkan: `?view=kasir` → `/staf/kasir`, `?view=crm-admin` → `/staf/laporan`,
+`?view=catalog-admin` → `/staf/katalog`, `?view=live-counter` & `/live-counter` → `/staf/live`,
+`/data-saya` → `/kartu-member` (query seperti `token` ikut dibawa).
+
+Customer Hub Go dapat menyajikan hasil build sekaligus API:
+
+```bash
+npm run build
+go build -o customer-hub ./cmd/customer-hub
+HUB_STATIC_DIR=./dist PORT=8089 ./customer-hub
+```
+
 ---
 
 ## Project Structure

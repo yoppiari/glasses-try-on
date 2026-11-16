@@ -854,7 +854,7 @@ export function clearStoredPortalSession() {
 export async function inspectMagicLink(token, options = {}) {
   const base = resolveApiBase(options)
   const clean = String(token || '').trim()
-  if (!clean) throw new Error('Token magic link kosong.')
+  if (!clean) throw new Error('Link Kartu Member tidak lengkap. Ketik MASUK ke WhatsApp DOOZ untuk link baru.')
 
   const resp = await fetch(`${base}/api/auth/magic-verify?token=${encodeURIComponent(clean)}`, {
     method: 'GET',
@@ -873,7 +873,7 @@ export async function inspectMagicLink(token, options = {}) {
 export async function exchangeMagicLink(token, confirmFullName = '', options = {}) {
   const base = resolveApiBase(options)
   const clean = String(token || '').trim()
-  if (!clean) throw new Error('Token magic link wajib diisi.')
+  if (!clean) throw new Error('Link Kartu Member tidak lengkap. Ketik MASUK ke WhatsApp DOOZ untuk link baru.')
 
   const resp = await fetch(`${base}/api/auth/magic-exchange`, {
     method: 'POST',
@@ -1263,7 +1263,7 @@ export async function kasirLookupPhone(phone, staffContext = { role: 'kasir', us
 
 export async function kasirScanQR(qrToken, staffContext = { role: 'kasir', userId: 'kasir-gading-01', outletId: 'outlet-solo-gading' }, options = {}) {
   const clean = String(qrToken || '').trim()
-  if (!clean) throw new Error('Token QR Dinamis member wajib diisi atau dipindai.')
+  if (!clean) throw new Error('Pindai QR Kartu Member pelanggan dulu.')
   const base = resolveApiBase(options)
   try {
     const resp = await fetch(`${base}/api/kasir/scan-qr`, {
@@ -1272,7 +1272,7 @@ export async function kasirScanQR(qrToken, staffContext = { role: 'kasir', userI
       body: JSON.stringify({ qr_token: clean }),
     })
     const data = await resp.json()
-    if (!resp.ok) throw new Error(data.error || 'Token QR Dinamis tidak valid atau sudah kedaluwarsa.')
+    if (!resp.ok) throw new Error(data.error || 'QR Kartu Member tidak valid atau sudah kedaluwarsa. Minta pelanggan memperbarui QR.')
     return data
   } catch (err) {
     if (String(err.message).includes('Failed to fetch') || err.name === 'TypeError' || clean.startsWith('DQR1.DEMO')) {
@@ -1340,7 +1340,7 @@ export async function kasirLevel2Action(qrToken, eventType, payload = {}, staffC
     }),
   })
   const data = await resp.json()
-  if (!resp.ok) throw new Error(data.error || 'Gagal mencatat aksi Kasir Level 2.')
+  if (!resp.ok) throw new Error(data.error || 'Tindakan belum tersimpan. Coba lagi.')
   return data
 }
 
@@ -1422,11 +1422,11 @@ export async function adminFetchDashboard(staffContext = { role: 'owner', userId
       headers: buildStaffHeaders(staffContext),
     })
     const data = await resp.json()
-    if (!resp.ok) throw new Error(data.error || 'Gagal memuat analitik Dashboard CRM.')
+    if (!resp.ok) throw new Error(data.error || 'Laporan belum bisa dimuat.')
     return data
   } catch (err) {
     if (String(staffContext.role || '').toLowerCase() === 'kasir') {
-      throw new Error('forbidden: insufficient role permissions')
+      throw new Error('Peran ini tidak boleh membuka laporan. Pilih Owner atau Admin.')
     }
     return {
       total_contacts: 14,
@@ -1498,7 +1498,7 @@ export async function adminPurgeInactiveRetention(staffContext = { role: 'owner'
     headers: buildStaffHeaders(staffContext),
   })
   const data = await resp.json()
-  if (!resp.ok) throw new Error(data.error || 'Gagal menjalankan purge retensi >24 bulan.')
+  if (!resp.ok) throw new Error(data.error || 'Pembersihan data belum berhasil.')
   return data
 }
 

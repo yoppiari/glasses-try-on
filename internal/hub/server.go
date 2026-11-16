@@ -19,7 +19,8 @@ type ServerConfig struct {
 	FonnteDeviceID   string
 	OfficialWANumber string
 	PortalBaseURL    string
-	WebhookRateLimit int // max requests per window per sender/IP
+	StaticDir        string // folder hasil build web (dist/); kosong = hanya API + halaman pengganti
+	WebhookRateLimit int    // max requests per window per sender/IP
 	RateLimitWindow  time.Duration
 	Clock            func() time.Time
 }
@@ -107,10 +108,8 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/auth/magic-verify", s.handleMagicVerify)
 	s.mux.HandleFunc("/api/auth/magic-exchange", s.handleMagicExchange)
 
-	// Member Portal ("Data Saya") & Standalone Capture SDK
+	// Kartu Member Saya (portal member tanpa password) & Standalone Capture SDK
 	s.mux.HandleFunc("/sdk/dooz-capture.js", s.handleServeCaptureSDK)
-	s.mux.HandleFunc("/data-saya", s.handlePortalWebPage)
-	s.mux.HandleFunc("/data-saya/", s.handlePortalWebPage)
 	s.mux.HandleFunc("/api/portal/demo-magic-link", s.handlePortalDemoMagicLink)
 	s.mux.HandleFunc("/api/portal/me", s.handlePortalMe)
 	s.mux.HandleFunc("/api/portal/confirm-recycled", s.handlePortalConfirmRecycled)
@@ -138,8 +137,6 @@ func (s *Server) registerRoutes() {
 
 	// OBS Live Counter (Privacy-Safe Masked Overlay)
 	s.mux.HandleFunc("/api/live/counter", s.handleLiveCounter)
-	s.mux.HandleFunc("/live-counter", s.handleLiveCounterWebPage)
-	s.mux.HandleFunc("/live-counter/", s.handleLiveCounterWebPage)
 
 	// Shared Catalog (Single Source of Truth: XS-XL Size Chart & Active DOOZ Frame SKUs)
 	s.mux.HandleFunc("/api/catalog/size-chart", s.handleCatalogSizeChart)
@@ -151,8 +148,10 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/admin/catalog/frames", s.handleAdminCatalogFrames)
 	s.mux.HandleFunc("/api/admin/catalog/frames/", s.handleAdminCatalogFrameBySKU)
 	s.mux.HandleFunc("/api/admin/catalog/import", s.handleAdminCatalogImport)
-	s.mux.HandleFunc("/admin/catalog", s.handleAdminCatalogWebPage)
-	s.mux.HandleFunc("/admin/catalog/", s.handleAdminCatalogWebPage)
+
+	// Aplikasi web (customer `/`, `/kartu-member`; staf `/staf/kasir|laporan|katalog|live`)
+	// + pengalihan link lama (?view=kasir, /data-saya, /live-counter, /admin/catalog, ...).
+	s.mux.HandleFunc("/", s.handleWebApp)
 }
 
 func (s *Server) allowRate(key string) bool {
@@ -344,7 +343,7 @@ func (s *Server) handleFonnteWebhook(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		magicURL := fmt.Sprintf("%s/data-saya?token=%s", strings.TrimRight(s.cfg.PortalBaseURL, "/"), ml.Token)
+		magicURL := fmt.Sprintf("%s/kartu-member?token=%s", strings.TrimRight(s.cfg.PortalBaseURL, "/"), ml.Token)
 		replyText := FormatVerificationReply(contact.MemberCode, sizeSummary, magicURL, ml.RequiresNameConfirm)
 		_, _ = s.cfg.ReplyQueue.EnqueueReply(senderNorm, cmd.Code, replyText)
 
@@ -367,7 +366,7 @@ func (s *Server) handleFonnteWebhook(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		magicURL := fmt.Sprintf("%s/data-saya?token=%s", strings.TrimRight(s.cfg.PortalBaseURL, "/"), ml.Token)
+		magicURL := fmt.Sprintf("%s/kartu-member?token=%s", strings.TrimRight(s.cfg.PortalBaseURL, "/"), ml.Token)
 		replyText := FormatVerificationReply(contact.MemberCode, sizeSummary, magicURL, ml.RequiresNameConfirm)
 		_, _ = s.cfg.ReplyQueue.EnqueueReply(senderNorm, cmd.Kind, replyText)
 
@@ -753,7 +752,7 @@ func (s *Server) handleAdminRetentionPurge(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"ok":          true,
+		"ok":           true,
 		"purged_count": count,
 		"purged_ids":   ids,
 	})
