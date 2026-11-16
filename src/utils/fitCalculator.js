@@ -1,5 +1,5 @@
 import { LANDMARKS } from './landmarkIndices'
-import { mapWidthToSizeCategory } from '../sdk/doozCapture'
+import { mapWidthToSizeCategory } from '../lib/catalog'
 
 /**
  * Fit Calculator

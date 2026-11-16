@@ -1,0 +1,966 @@
+/*
+ * Modul Member DOOZ — gaya mandiri (tanpa Tailwind), Brand Guidelines Kacamata DOOZ v1.0.
+ * Semua kelas berawalan `mdz-` dan variabel `--mdz-*` sehingga aman dipasang di app mana pun.
+ * Ganti warna/font lewat variabel di bawah bila perlu.
+ */
+.mdz-root {
+  --mdz-ivory: #fff8f0;
+  --mdz-ink: #252a2d;
+  --mdz-ink-2: #32383c;
+  --mdz-orange: #ec6702;
+  --mdz-orange-2: #f27414;
+  --mdz-sand: #e9e1d7;
+  --mdz-mist: #c9d4d3;
+  --mdz-danger: #b42318;
+  --mdz-font: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --mdz-serif: 'Noto Serif Display', Georgia, 'Times New Roman', serif;
+  --mdz-z: 1000;
+  font-family: var(--mdz-font);
+  color: var(--mdz-ink);
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.45;
+}
+.mdz-root *,
+.mdz-root *::before,
+.mdz-root *::after {
+  box-sizing: border-box;
+}
+.mdz-root h1,
+.mdz-root h2,
+.mdz-root p,
+.mdz-root ul,
+.mdz-root ol,
+.mdz-root dl,
+.mdz-root dd {
+  margin: 0;
+  padding: 0;
+}
+.mdz-root ul,
+.mdz-root ol {
+  list-style: none;
+}
+.mdz-root button,
+.mdz-root input,
+.mdz-root textarea {
+  font: inherit;
+  color: inherit;
+}
+.mdz-root button {
+  cursor: pointer;
+}
+
+/* ---------------- Tombol pemicu (pojok kanan atas) ---------------- */
+.mdz-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 10px 0 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.mdz-trigger:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+.mdz-trigger:focus-visible {
+  outline: 2px solid var(--mdz-orange);
+  outline-offset: 2px;
+}
+.mdz-trigger--light {
+  border-color: var(--mdz-mist);
+  background: var(--mdz-ivory);
+  color: var(--mdz-ink);
+}
+.mdz-trigger--light:hover {
+  background: var(--mdz-sand);
+}
+.mdz-trigger:not(.mdz-trigger--member) {
+  background: var(--mdz-orange);
+  border-color: var(--mdz-orange);
+  color: var(--mdz-ink);
+}
+.mdz-trigger:not(.mdz-trigger--member):hover {
+  background: var(--mdz-orange-2);
+}
+.mdz-trigger__avatar {
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--mdz-orange);
+  color: var(--mdz-ink);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+/* ---------------- Panel layar penuh ---------------- */
+.mdz-panel {
+  position: fixed;
+  inset: 0;
+  z-index: var(--mdz-z);
+  display: flex;
+  flex-direction: column;
+  background: var(--mdz-ivory);
+  animation: mdz-fade 0.18s ease-out;
+}
+.mdz-panel__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: max(8px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left));
+  background: var(--mdz-ink);
+  color: #fff;
+}
+.mdz-panel__kicker {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--mdz-mist);
+}
+.mdz-panel__title {
+  font-family: var(--mdz-serif);
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mdz-tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 8px max(12px, env(safe-area-inset-right)) 8px max(12px, env(safe-area-inset-left));
+  background: var(--mdz-ink);
+  scrollbar-width: none;
+}
+.mdz-tabs::-webkit-scrollbar {
+  display: none;
+}
+.mdz-tab {
+  flex: 1 0 auto;
+  height: 34px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.mdz-tab:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+.mdz-tab--active,
+.mdz-tab--active:hover {
+  background: var(--mdz-orange);
+  color: var(--mdz-ink);
+}
+.mdz-panel__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px max(16px, env(safe-area-inset-right)) max(28px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+}
+.mdz-panel__inner {
+  max-width: 460px;
+  margin: 0 auto;
+}
+
+/* ---------------- Tata letak ---------------- */
+.mdz-stack > * + * {
+  margin-top: 16px;
+}
+.mdz-stack-sm > * + * {
+  margin-top: 10px;
+}
+.mdz-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.mdz-row--between {
+  justify-content: space-between;
+}
+.mdz-row--start {
+  align-items: flex-start;
+}
+.mdz-row--end {
+  align-items: flex-end;
+}
+.mdz-grow {
+  flex: 1 1 auto;
+}
+.mdz-min0 {
+  min-width: 0;
+}
+.mdz-block {
+  display: block;
+}
+.mdz-push {
+  margin-left: auto;
+}
+.mdz-center {
+  text-align: center;
+}
+.mdz-nowrap {
+  white-space: nowrap;
+}
+.mdz-grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 16px;
+}
+.mdz-list > li + li {
+  margin-top: 12px;
+}
+
+/* ---------------- Tipografi ---------------- */
+.mdz-title {
+  font-family: var(--mdz-serif);
+  font-size: 26px;
+  line-height: 1.15;
+  font-weight: 600;
+  color: var(--mdz-ink);
+}
+.mdz-title--light {
+  color: #fff;
+}
+.mdz-h2 {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--mdz-ink);
+}
+.mdz-muted {
+  color: rgba(37, 42, 45, 0.7);
+  font-size: 14px;
+}
+.mdz-muted-light {
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 14px;
+}
+.mdz-small {
+  font-size: 12px;
+}
+.mdz-accent {
+  color: var(--mdz-orange);
+  font-size: 22px;
+}
+.mdz-code {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  color: var(--mdz-orange);
+}
+.mdz-link {
+  border: 0;
+  padding: 0;
+  background: none;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  color: inherit;
+}
+.mdz-danger-text {
+  color: var(--mdz-danger) !important;
+}
+
+/* ---------------- Tombol ---------------- */
+.mdz-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  font-weight: 700;
+  white-space: nowrap;
+  text-decoration: none;
+  user-select: none;
+  transition: background 0.15s, opacity 0.15s;
+}
+.mdz-btn:focus-visible {
+  outline: 2px solid var(--mdz-orange);
+  outline-offset: 2px;
+}
+.mdz-btn:disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+.mdz-btn--sm {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-size: 12px;
+}
+.mdz-btn--md {
+  height: 42px;
+  padding: 0 16px;
+  border-radius: 12px;
+  font-size: 14px;
+}
+.mdz-btn--lg {
+  height: 48px;
+  padding: 0 22px;
+  border-radius: 16px;
+  font-size: 16px;
+}
+.mdz-btn--block {
+  display: flex;
+  width: 100%;
+}
+.mdz-btn--ink {
+  background: var(--mdz-ink);
+  color: #fff;
+}
+.mdz-btn--ink:hover {
+  background: var(--mdz-ink-2);
+}
+.mdz-btn--orange {
+  background: var(--mdz-orange);
+  color: var(--mdz-ink);
+}
+.mdz-btn--orange:hover {
+  background: var(--mdz-orange-2);
+}
+.mdz-btn--outline {
+  border-color: var(--mdz-mist);
+  background: var(--mdz-ivory);
+  color: var(--mdz-ink);
+}
+.mdz-btn--outline:hover {
+  background: var(--mdz-sand);
+}
+.mdz-btn--ghost {
+  background: transparent;
+  color: var(--mdz-ink);
+}
+.mdz-btn--ghost:hover {
+  background: rgba(233, 225, 215, 0.7);
+}
+.mdz-btn--danger {
+  background: var(--mdz-danger);
+  color: #fff;
+}
+.mdz-btn--danger:hover {
+  background: #9b1f15;
+}
+.mdz-close {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(37, 42, 45, 0.7);
+}
+.mdz-close:hover {
+  background: rgba(233, 225, 215, 0.7);
+}
+.mdz-close--light {
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+.mdz-close--light:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* ---------------- Formulir ---------------- */
+.mdz-field > * + * {
+  margin-top: 6px;
+}
+.mdz-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--mdz-ink);
+}
+.mdz-hint {
+  font-size: 12px;
+  color: rgba(37, 42, 45, 0.6);
+}
+.mdz-input {
+  display: block;
+  width: 100%;
+  height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--mdz-mist);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--mdz-ink);
+  font-size: 16px;
+}
+.mdz-input::placeholder {
+  color: rgba(37, 42, 45, 0.4);
+}
+.mdz-input:focus {
+  outline: none;
+  border-color: var(--mdz-orange);
+  box-shadow: 0 0 0 3px rgba(236, 103, 2, 0.22);
+}
+.mdz-textarea {
+  height: auto;
+  padding: 10px 14px;
+  resize: vertical;
+}
+.mdz-input--num {
+  padding: 0 4px;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.mdz-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.mdz-field .mdz-chips {
+  margin-top: 6px;
+}
+.mdz-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--mdz-mist);
+  border-radius: 999px;
+  background: var(--mdz-ivory);
+  color: var(--mdz-ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+.mdz-chip:hover {
+  background: var(--mdz-sand);
+}
+.mdz-chip--active,
+.mdz-chip--active:hover {
+  border-color: var(--mdz-ink);
+  background: var(--mdz-ink);
+  color: #fff;
+}
+.mdz-temple {
+  display: grid;
+  grid-template-columns: 1fr 14px 1fr 14px 1fr;
+  align-items: center;
+  gap: 6px;
+  font-size: 20px;
+  font-weight: 700;
+  color: rgba(37, 42, 45, 0.6);
+  text-align: center;
+}
+.mdz-temple--labels {
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* ---------------- Kotak & status ---------------- */
+.mdz-hero {
+  position: relative;
+  border-radius: 24px;
+  background: var(--mdz-ink);
+  color: #fff;
+  padding: 20px;
+}
+.mdz-hero > * + * {
+  margin-top: 12px;
+}
+.mdz-hero .mdz-btn {
+  margin-top: 18px;
+}
+.mdz-benefits > li {
+  position: relative;
+  padding-left: 26px;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.9);
+}
+.mdz-benefits > li + li {
+  margin-top: 6px;
+}
+.mdz-benefits > li::before {
+  content: '✓';
+  position: absolute;
+  left: 0;
+  top: 1px;
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--mdz-orange);
+  color: var(--mdz-ink);
+  font-size: 11px;
+  font-weight: 800;
+}
+.mdz-panel-light {
+  border-radius: 16px;
+  background: #fff;
+  color: var(--mdz-ink);
+  padding: 14px;
+}
+.mdz-box {
+  border: 1px solid var(--mdz-mist);
+  border-radius: 20px;
+  background: #fff;
+  padding: 16px;
+}
+.mdz-box--danger {
+  border-color: rgba(180, 35, 24, 0.3);
+}
+.mdz-box .mdz-list {
+  margin-top: 10px;
+}
+.mdz-notice {
+  border-radius: 12px;
+  border: 1px solid rgba(236, 103, 2, 0.4);
+  background: rgba(233, 225, 215, 0.5);
+  padding: 10px 14px;
+  font-size: 14px;
+  color: var(--mdz-ink);
+}
+.mdz-notice--error {
+  border-color: rgba(180, 35, 24, 0.3);
+  background: #fef3f2;
+  color: #7a271a;
+}
+.mdz-notice--success {
+  border-color: rgba(46, 125, 79, 0.3);
+  background: #ecf7f0;
+  color: #1f5a39;
+}
+.mdz-callout {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid rgba(236, 103, 2, 0.5);
+  border-radius: 16px;
+  background: rgba(233, 225, 215, 0.5);
+  padding: 12px 14px;
+  font-size: 14px;
+}
+p.mdz-callout {
+  display: block;
+  margin-top: 10px;
+}
+.mdz-empty {
+  border: 1px dashed var(--mdz-mist);
+  border-radius: 20px;
+  background: #fff;
+  padding: 24px;
+  text-align: center;
+  font-size: 14px;
+  color: rgba(37, 42, 45, 0.7);
+}
+.mdz-pill {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--mdz-sand);
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.mdz-tag {
+  display: inline-block;
+  margin-bottom: 2px;
+  border-radius: 999px;
+  background: var(--mdz-ink);
+  padding: 2px 8px;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.mdz-option {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--mdz-mist);
+  border-radius: 16px;
+  background: #fff;
+  padding: 14px 16px;
+  text-align: left;
+}
+.mdz-option:hover {
+  border-color: var(--mdz-orange);
+}
+.mdz-facts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  border-radius: 12px;
+  background: rgba(233, 225, 215, 0.45);
+  padding: 10px 12px;
+}
+.mdz-facts dt {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(37, 42, 45, 0.6);
+}
+.mdz-facts dd {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.mdz-loading {
+  display: flex;
+  height: 160px;
+  align-items: center;
+  justify-content: center;
+  color: var(--mdz-orange);
+}
+.mdz-spin {
+  width: 20px;
+  height: 20px;
+  animation: mdz-spin 0.8s linear infinite;
+}
+.mdz-spin--lg {
+  width: 28px;
+  height: 28px;
+}
+.mdz-busy {
+  opacity: 0.6;
+}
+
+/* ---------------- Kartu Member ---------------- */
+.mdz-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 24px;
+  background: var(--mdz-ink);
+  color: #fff;
+  padding: 20px;
+  box-shadow: 0 10px 30px rgba(37, 42, 45, 0.25);
+  animation: mdz-pop 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.mdz-card__corner {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-color: rgba(236, 103, 2, 0.7);
+  border-style: solid;
+  border-width: 0;
+}
+.mdz-card__corner--tl {
+  top: 10px;
+  left: 10px;
+  border-top-width: 2px;
+  border-left-width: 2px;
+}
+.mdz-card__corner--br {
+  right: 10px;
+  bottom: 10px;
+  border-right-width: 2px;
+  border-bottom-width: 2px;
+}
+.mdz-badge {
+  border-radius: 999px;
+  background: var(--mdz-orange);
+  padding: 4px 10px;
+  color: var(--mdz-ink);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.mdz-wordmark {
+  display: inline-flex;
+  flex-direction: column;
+  line-height: 1;
+  color: #fff;
+}
+.mdz-wordmark span {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.32em;
+}
+.mdz-wordmark b {
+  font-family: var(--mdz-serif);
+  font-size: 22px;
+  letter-spacing: 0.06em;
+}
+.mdz-card__main {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  margin-top: 16px;
+}
+.mdz-card__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mdz-serif);
+  font-size: 24px;
+  font-weight: 600;
+}
+.mdz-card__code {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--mdz-mist);
+  font-variant-numeric: tabular-nums;
+}
+.mdz-card__label {
+  margin-top: 16px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mdz-mist);
+}
+.mdz-card__size {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 2px;
+}
+.mdz-card__cat {
+  font-size: 30px;
+  font-weight: 800;
+  color: var(--mdz-orange);
+}
+.mdz-card__mm {
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.mdz-card__sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.75);
+}
+.mdz-card__qr {
+  flex: 0 0 auto;
+  border-radius: 12px;
+  background: #fff;
+  padding: 6px;
+  line-height: 0;
+}
+.mdz-card__foot {
+  margin-top: 12px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+/* ---------------- Ukuran Saya ---------------- */
+.mdz-measure {
+  border: 1px solid var(--mdz-mist);
+  border-radius: 24px;
+  background: #fff;
+  padding: 16px;
+}
+.mdz-measure > * + * {
+  margin-top: 8px;
+}
+.mdz-measure--primary {
+  border-color: var(--mdz-orange);
+  box-shadow: 0 2px 8px rgba(236, 103, 2, 0.15);
+}
+.mdz-measure__cat {
+  display: flex;
+  min-width: 56px;
+  height: 56px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  background: var(--mdz-orange);
+  padding: 0 8px;
+  font-size: 24px;
+  font-weight: 800;
+}
+.mdz-measure__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mdz-serif);
+  font-size: 18px;
+  font-weight: 600;
+}
+.mdz-measure__mm {
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.mdz-measure__note {
+  font-size: 14px;
+  font-style: italic;
+  color: rgba(37, 42, 45, 0.8);
+}
+.mdz-measure__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  border-top: 1px solid rgba(201, 212, 211, 0.7);
+  padding-top: 10px;
+}
+
+/* ---------------- Riwayat ---------------- */
+.mdz-timeline {
+  border: 1px solid var(--mdz-mist);
+  border-radius: 20px;
+  background: #fff;
+  padding: 4px 14px;
+}
+.mdz-timeline__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 0;
+}
+.mdz-timeline__item + .mdz-timeline__item {
+  border-top: 1px solid rgba(201, 212, 211, 0.6);
+}
+.mdz-timeline__icon {
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--mdz-sand);
+  font-size: 16px;
+}
+.mdz-timeline__title {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* ---------------- Sheet & toast ---------------- */
+.mdz-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--mdz-z) + 1);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.mdz-sheet__backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(37, 42, 45, 0.55);
+  animation: mdz-fade 0.2s ease-out;
+}
+.mdz-sheet__body {
+  position: relative;
+  display: flex;
+  width: 100%;
+  max-width: 520px;
+  max-height: 94dvh;
+  flex-direction: column;
+  border-radius: 24px 24px 0 0;
+  background: var(--mdz-ivory);
+  padding-bottom: env(safe-area-inset-bottom);
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.25);
+  animation: mdz-up 0.26s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.mdz-sheet__head {
+  padding: 10px 20px 8px;
+}
+.mdz-sheet__grip {
+  width: 40px;
+  height: 4px;
+  margin: 0 auto 8px;
+  border-radius: 999px;
+  background: var(--mdz-mist);
+}
+.mdz-sheet__title {
+  font-family: var(--mdz-serif);
+  font-size: 20px;
+  font-weight: 600;
+}
+.mdz-sheet__sub {
+  margin-top: 2px;
+  font-size: 14px;
+  color: rgba(37, 42, 45, 0.75);
+}
+.mdz-sheet__content {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px 20px 20px;
+}
+.mdz-toast {
+  position: fixed;
+  left: 50%;
+  bottom: max(20px, env(safe-area-inset-bottom));
+  z-index: calc(var(--mdz-z) + 2);
+  transform: translateX(-50%);
+  max-width: calc(100vw - 32px);
+  border-radius: 999px;
+  background: var(--mdz-ink);
+  padding: 10px 16px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  animation: mdz-fade 0.2s ease-out;
+}
+
+@keyframes mdz-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes mdz-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes mdz-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes mdz-pop {
+  from {
+    transform: scale(0.94);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mdz-panel,
+  .mdz-card,
+  .mdz-sheet__body,
+  .mdz-sheet__backdrop,
+  .mdz-toast {
+    animation: none;
+  }
+}

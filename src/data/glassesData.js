@@ -1,8 +1,8 @@
 /**
- * DOOZ Glasses Try-On — Shared Catalog Adapter & Default Frame Data
- * Synchronizes `glasses-try-on` with Customer Hub Single Source of Truth:
- * - `GET /api/catalog/size-chart` (XS–XL millimeter ranges)
- * - `GET /api/catalog/frames` (Active SKUs, 2.5D sprites, dimensions, and stock status)
+ * DOOZ Glasses Try-On — adaptor Katalog & data frame bawaan.
+ * Sumber data: Katalog di DOOZ CRM (`src/lib/catalog.js`):
+ * - `GET {CRM}/api/catalog/size-chart` (rentang mm XS–XL)
+ * - `GET {CRM}/api/catalog/frames` (SKU aktif, sprite 2.5D, ukuran, stok)
  */
 
 import {
@@ -10,10 +10,8 @@ import {
   SIZE_CHART_DEFAULT,
   fetchCatalogFrames,
   fetchSizeChart,
-  getStoredLeadState,
-  getStoredPortalSession,
   mapWidthToSizeCategory,
-} from '../sdk/doozCapture'
+} from '../lib/catalog'
 
 const RAW_BASE =
   typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.BASE_URL
@@ -154,15 +152,10 @@ export const DEFAULT_PRODUCTS = CATALOG_FRAMES_DEFAULT.map((f) =>
 ).filter(Boolean)
 
 /**
- * Synchronizes both the XS–XL size chart and active frame catalog from Customer Hub
- * (`GET /api/catalog/size-chart` & `GET /api/catalog/frames`), normalizing all frames
- * for `glasses-try-on`.
+ * Memuat size chart XS–XL dan frame aktif dari Katalog DOOZ CRM, lalu menormalkan frame untuk Try-On.
  */
-export async function syncSharedCatalog(filters = {}, options = {}) {
-  const [sizeChartRes, framesRes] = await Promise.all([
-    fetchSizeChart(options),
-    fetchCatalogFrames(filters, options),
-  ])
+export async function syncSharedCatalog(options = {}) {
+  const [sizeChartRes, framesRes] = await Promise.all([fetchSizeChart(options), fetchCatalogFrames(options)])
 
   const sizeChart =
     Array.isArray(sizeChartRes?.size_chart) && sizeChartRes.size_chart.length > 0
@@ -186,13 +179,12 @@ export async function syncSharedCatalog(filters = {}, options = {}) {
 }
 
 /**
- * Parses URL parameters and stored customer state (Portal "Data Saya", LeadState, or Camera Biometrics)
- * to determine the customer's recommended size category (`XS`–`XL`), width in mm, and target SKU.
+ * Menentukan ukuran customer (XS–XL, lebar mm) dari: link App Ukur (`?size=&width_mm=`),
+ * ukuran utama Member DOOZ (bila sudah masuk), atau perkiraan kamera.
  */
 export function resolveCustomerSizeProfile({
   searchString,
-  portalProfile,
-  leadState,
+  memberMeasurement,
   cameraFaceWidthMm,
   sizeChart = SIZE_CHART_DEFAULT,
 } = {}) {
@@ -210,7 +202,7 @@ export function resolveCustomerSizeProfile({
 
   const validCategories = ['XS', 'S', 'M', 'L', 'XL']
 
-  // 1. URL query parameters (e.g., deep link from `ukur-frame-dooz` or signed attribution link)
+  // 1. Parameter URL (link "Coba frame yang pas" dari App Ukur)
   if (validCategories.includes(urlSizeRaw) || (Number.isFinite(urlWidthRaw) && urlWidthRaw > 0)) {
     const resolvedWidth = Number.isFinite(urlWidthRaw) && urlWidthRaw > 0 ? Math.round(urlWidthRaw) : null
     const resolvedCategory = validCategories.includes(urlSizeRaw)
@@ -225,14 +217,11 @@ export function resolveCustomerSizeProfile({
     }
   }
 
-  // 2. Authenticated Member Portal ("Data Saya") profile or stored session
-  const portalMeas =
-    portalProfile?.latest_measurement ||
-    getStoredPortalSession()?.latest_measurement ||
-    null
-  if (portalMeas && (portalMeas.size_category || portalMeas.frame_width_mm)) {
-    const widthMm = Number(portalMeas.frame_width_mm) > 0 ? Math.round(Number(portalMeas.frame_width_mm)) : null
-    const cat = String(portalMeas.size_category || '').trim().toUpperCase()
+  // 2. Ukuran utama Member DOOZ (Ukuran Saya)
+  const meas = memberMeasurement
+  if (meas && (meas.size_category || meas.frame_width_mm)) {
+    const widthMm = Number(meas.frame_width_mm) > 0 ? Math.round(Number(meas.frame_width_mm)) : null
+    const cat = String(meas.size_category || '').trim().toUpperCase()
     const resolvedCategory = validCategories.includes(cat)
       ? cat
       : widthMm
@@ -241,33 +230,13 @@ export function resolveCustomerSizeProfile({
     return {
       sizeCategory: resolvedCategory,
       widthMm,
-      requestedSku: urlSkuRaw || portalMeas.frame_sku || null,
-      source: 'portal_session',
-      sourceLabel: 'Kartu Member Saya',
+      requestedSku: urlSkuRaw || null,
+      source: 'member',
+      sourceLabel: 'Ukuran Saya (Member DOOZ)',
     }
   }
 
-  // 3. Stored LeadState in browser (from previous capture /ukur-frame or try-on)
-  const storedLead = leadState || getStoredLeadState()
-  const leadMeas = storedLead?.latest_payload
-  if (leadMeas && (leadMeas.size_category || leadMeas.frame_width_mm)) {
-    const widthMm = Number(leadMeas.frame_width_mm) > 0 ? Math.round(Number(leadMeas.frame_width_mm)) : null
-    const cat = String(leadMeas.size_category || '').trim().toUpperCase()
-    const resolvedCategory = validCategories.includes(cat)
-      ? cat
-      : widthMm
-        ? mapWidthToSizeCategory(widthMm, sizeChart)
-        : 'M'
-    return {
-      sizeCategory: resolvedCategory,
-      widthMm,
-      requestedSku: urlSkuRaw || leadMeas.frame_sku || null,
-      source: 'lead_state',
-      sourceLabel: 'Profil Tersimpan',
-    }
-  }
-
-  // 4. Real-time camera biometric face width estimation from MediaPipe
+  // 3. Perkiraan lebar wajah dari kamera (MediaPipe)
   if (Number.isFinite(Number(cameraFaceWidthMm)) && Number(cameraFaceWidthMm) > 0) {
     const widthMm = Math.round(Number(cameraFaceWidthMm))
     const resolvedCategory = mapWidthToSizeCategory(widthMm, sizeChart)

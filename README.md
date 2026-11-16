@@ -151,35 +151,45 @@ npm run build
 npm run preview
 ```
 
-### Kacamata DOOZ — rute aplikasi
+### Kacamata DOOZ Try-On
 
-Semua layar memakai Brand Guidelines Kacamata DOOZ v1.0 (sama dengan mini app Ukur Frame:
-ivory `#FFF8F0`, ink `#252A2D`, oranye `#EC6702`, Inter + Noto Serif Display, wordmark 2 baris).
+Try-On adalah **mini app pelanggan dengan satu tugas: coba kacamata**
+(Knowledge *"Arsitektur Link: Mini App Terpisah, DOOZ CRM Khusus Staf & Member DOOZ"*).
+Aplikasi staf dan server data member ada di **DOOZ CRM** (repo `dooz-crm`, `https://dooz-crm-pocco.fural.space`).
 
-| Aplikasi | Rute | Isi |
-|----------|------|-----|
-| Customer | `/` | Coba Kacamata (filter otomatis dari `?size=&width_mm=` hasil Ukur Frame) → **Simpan pilihan saya** → Nama, No WA, Kota → **Buka WhatsApp** |
-| Customer | `/kartu-member` | Kartu Member Saya (dibuka lewat link dari WhatsApp; token ditukar lewat POST) |
-| Staf | `/staf/kasir` | Kasir: 1 · cari nomor WA lengkap (data tersamar), 2 · scan Kartu Member (data lengkap), pelanggan baru |
-| Staf | `/staf/laporan` | Laporan, link kampanye bertanda tangan, riwayat akses (audit log), link overlay OBS Live |
-| Staf | `/staf/katalog` | Tabel ukuran XS–XL & model frame |
-| Staf | `/staf/live` | Overlay OBS Live (latar transparan, nama tersamar) |
+| Bagian | Isi |
+|--------|-----|
+| `/` | Coba Kacamata. Filter ukuran otomatis dari `?size=&width_mm=` (link App Ukur) atau ukuran utama Member DOOZ |
+| Tombol **Member DOOZ** (pojok kanan atas) | Kartu Member (QR untuk Kasir), Ukuran Saya, Riwayat, Profil & Privasi. Belum member → **Masuk lewat WhatsApp** saja (tidak ada ajakan simpan/jadi member di Try-On; ajakan ada di App Ukur) |
+| Katalog frame | `GET {CRM}/api/catalog/size-chart` & `/api/catalog/frames` (`src/lib/catalog.js`); CRM tidak bisa dihubungi → cache di HP → katalog bawaan |
+| Riwayat frame dicoba | Member yang masuk: `POST {CRM}/api/capture/events` `frame_tried` (`src=glasses_try_on`) → tampil di Riwayat |
+| Login | `?masuk=<token>` (magic link WA, app `tryon`) dan `?handoff=<token>` (pindah dari App Ukur, login ikut terbawa) |
 
-Link lama tetap jalan dan dialihkan: `?view=kasir` → `/staf/kasir`, `?view=crm-admin` → `/staf/laporan`,
-`?view=catalog-admin` → `/staf/katalog`, `?view=live-counter` & `/live-counter` → `/staf/live`,
-`/data-saya` → `/kartu-member` (query seperti `token` ikut dibawa).
+Link lama tetap jalan (`server/redirects.mjs`, dipakai server dan aplikasi web):
 
-Customer Hub Go dapat menyajikan hasil build sekaligus API:
+| Link lama | Tujuan |
+|-----------|--------|
+| `/staf/*`, `/kasir`, `/admin/crm`, `/admin/catalog`, `/live-counter`, `?view=kasir…` | DOOZ CRM (aplikasi staf, wajib login) |
+| `/kartu-member`, `/data-saya`, `?view=portal` | Member DOOZ di App Ukur (`/?layar=kartu-member`) |
+| `/kartu-member?token=…` (magic link WA lama) | `/?masuk=…` di Try-On (panel Member DOOZ) |
+| `/api/kasir/*`, `/api/admin/*`, … (API staf) | 308 ke CRM |
+| `/api/capture/*`, `/api/portal/*`, `/api/webhooks/fonnte*`, … | diteruskan ke CRM (URL lama tidak putus) |
+
+Modul **Member DOOZ** adalah salinan `ukur-frame-dooz/packages/member-dooz` di `src/vendor/member-dooz`
+(alias Vite `@dooz/member-dooz`). **Jangan edit salinan**; ubah di sumber lalu sinkron ulang:
 
 ```bash
-npm run build
-go build -o customer-hub ./cmd/customer-hub
-HUB_STATIC_DIR=./dist PORT=8089 ./customer-hub
+cd ../ukur-frame-dooz && node packages/member-dooz/scripts/sync-to.mjs ../glasses-try-on
 ```
 
-API **"Ukuran Saya"** (multi-ukuran member, polling verifikasi App Ukur, "Masuk lewat WhatsApp"):
-lihat [docs/api-ukuran-saya.md](docs/api-ukuran-saya.md). Env opsional `UKUR_APP_URL`
-(default `https://ukur-frame-dooz-pocco.fural.space`) menentukan tujuan magic link untuk App Ukur.
+Env build opsional: `VITE_DOOZ_CRM_URL` (default `https://dooz-crm-pocco.fural.space`),
+`VITE_DOOZ_UKUR_URL` (default `https://ukur-frame-dooz-pocco.fural.space`).
+
+```bash
+npm test                         # tes pengalihan, server statis, klien Katalog
+npm run build && npm start       # server statis tanpa dependensi (PORT, CRM_URL, UKUR_URL)
+scripts/deploy-preview.sh        # build + tes + deploy ke https://glasses-try-on-pocco.fural.space
+```
 
 ---
 

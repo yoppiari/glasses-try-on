@@ -1,0 +1,21 @@
+{
+  "name": "@dooz/member-dooz",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Modul Member DOOZ: klien API DOOZ CRM + tombol & panel Member (Kartu Member, Ukuran Saya, Riwayat, Profil & Privasi) untuk semua mini app Kacamata DOOZ.",
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": "./src/client.ts",
+    "./member-dooz.css": "./src/member-dooz.css"
+  },
+  "files": ["src", "README.md"],
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "peerDependencies": {
+    "qrcode-generator": ">=1.4 <3",
+    "react": ">=18"
+  }
+}

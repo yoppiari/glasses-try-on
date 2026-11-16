@@ -1,0 +1,2 @@
+Salinan modul Member DOOZ 0.1.0 dari ukur-frame-dooz@d9d221b (packages/member-dooz).
+Jangan edit di sini — ubah di sumber lalu jalankan scripts/sync-to.mjs lagi.

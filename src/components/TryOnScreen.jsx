@@ -1,8 +1,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
+import { MemberDoozButton, useMemberDooz } from '@dooz/member-dooz'
 import TryOnCanvas from './TryOnCanvas'
-import LeadCaptureModal from './LeadCaptureModal'
 import { AppHeader } from './brand/Brand'
-import { NavLink, PATHS } from '../lib/routes'
 import { getFitColor } from '../utils/fitCalculator'
 import {
     DEFAULT_PRODUCTS,
@@ -10,22 +9,9 @@ import {
     syncSharedCatalog,
     resolveCustomerSizeProfile,
 } from '../data/glassesData'
-import {
-    fetchPortalMe,
-    getLocalTrackedEvents,
-    getStoredLeadState,
-    getStoredPortalSession,
-    mapWidthToSizeCategory,
-    track,
-} from '../sdk/doozCapture'
+import { UKUR_URL, mapWidthToSizeCategory } from '../lib/catalog'
 
 const SIZE_CATEGORIES = ['XS', 'S', 'M', 'L', 'XL']
-
-/** Link ke mini app Ukur Frame untuk customer yang belum tahu ukurannya. */
-const UKUR_FRAME_URL = (import.meta.env.VITE_DOOZ_UKUR_URL || 'https://ukur-frame-dooz-pocco.fural.space').replace(
-    /\/+$/,
-    ''
-)
 
 function formatRupiah(idr) {
     const n = Number(idr)
@@ -53,33 +39,11 @@ export default function TryOnScreen() {
     const [sizeChart, setSizeChart] = useState(SIZE_CHART_DEFAULT)
 
     const [selectedProduct, setSelectedProduct] = useState(DEFAULT_PRODUCTS[0])
-    const [triedProducts, setTriedProducts] = useState(() => {
-        const localTried = getLocalTrackedEvents()
-            .filter((e) => e.event_type === 'frame_tried' && e.payload?.frame_sku)
-            .map((e) => {
-                const found = DEFAULT_PRODUCTS.find(
-                    (p) =>
-                        p.sku.toUpperCase() === String(e.payload.frame_sku).toUpperCase() ||
-                        p.id === e.payload.frame_sku
-                )
-                return (
-                    found || {
-                        id: e.payload.frame_sku,
-                        sku: e.payload.frame_sku,
-                        name: e.payload.frame_name || e.payload.frame_sku,
-                        frameWidth: e.payload.frame_width_mm || 138,
-                        sizeCategory: e.payload.size_category || 'M',
-                    }
-                )
-            })
-        return localTried
-    })
+    const { client: memberClient, isMember, me } = useMemberDooz()
 
-    const [portalProfile, setPortalProfile] = useState(null)
     const [sizeFilter, setSizeFilter] = useState('ALL') // 'ALL' | 'RECOMMENDED' | 'XS' | 'S' | 'M' | 'L' | 'XL'
     const [autoFilterApplied, setAutoFilterApplied] = useState(false)
 
-    const [showLeadModal, setShowLeadModal] = useState(false)
     const [showDebug, setShowDebug] = useState(false)
     const [showHud, setShowHud] = useState(false)
     const [sizingMode, setSizingMode] = useState('aesthetic') // 'aesthetic' | 'trueSize'
@@ -88,72 +52,40 @@ export default function TryOnScreen() {
     const canvasRef = useRef(null)
     const initialTrackedRef = useRef(false)
 
-    // Muat ukuran dari Kartu Member (jika sesi member tersimpan di HP ini)
-    useEffect(() => {
-        const storedSess = getStoredPortalSession()
-        if (!storedSess?.session_token) return
-        if (String(storedSess.session_token).startsWith('demo-sess-')) {
-            setPortalProfile({
-                member_code: storedSess.member_code || 'DOOZ-48219',
-                latest_measurement: storedSess.latest_measurement || {
-                    frame_width_mm: 138,
-                    bridge_mm: 18,
-                    temple_mm: 142,
-                    size_category: 'M',
-                },
-            })
-            return
-        }
-        fetchPortalMe(storedSess.session_token)
-            .then((view) => {
-                if (view) setPortalProfile(view)
-            })
-            .catch(() => {
-                // sesi kedaluwarsa: abaikan
-            })
-    }, [])
+    // Ukuran utama Member DOOZ (Ukuran Saya) bila sudah masuk
+    const memberMeasurement = useMemo(() => {
+        if (!isMember || !me) return null
+        if (me.primary_measurement) return me.primary_measurement
+        return me.primary_size_category ? { size_category: me.primary_size_category } : null
+    }, [isMember, me])
 
-    // Ukuran customer: dari link Ukur Frame (?size=&width_mm=), Kartu Member, data tersimpan, atau kamera
+    // Ukuran customer: dari link App Ukur (?size=&width_mm=), ukuran utama Member DOOZ, atau kamera
     const customerProfile = useMemo(
         () =>
             resolveCustomerSizeProfile({
-                portalProfile,
-                leadState: getStoredLeadState(),
+                memberMeasurement,
                 cameraFaceWidthMm: fitInfo?.faceWidth,
                 sizeChart,
             }),
-        [portalProfile, fitInfo?.faceWidth, sizeChart]
+        [memberMeasurement, fitInfo?.faceWidth, sizeChart]
     )
 
-    // Catat `frame_tried` ke Customer Hub (`POST /api/capture/events`) & riwayat lokal
+    // Catat `frame_tried` ke Riwayat Member DOOZ di CRM (`POST /api/capture/events`, hanya member yang masuk).
+    // Server melengkapi nama, lebar & kategori frame dari Katalog. SKU yang sama berturut-turut dicatat sekali.
+    const lastTrackedSkuRef = useRef('')
     const recordFrameTried = useCallback(
-        (product, triggerSource = 'carousel_select') => {
-            if (!product) return
-            setTriedProducts((prev) => (prev.some((p) => sameProduct(p, product)) ? prev : [product, ...prev]))
-
-            void track('frame_tried', {
-                frame_sku: product.sku || product.id,
-                frame_name: product.name,
-                frame_width_mm: product.frameWidth || product.frame_width_mm || 138,
-                bridge_mm: product.bridgeMm || product.bridge_mm || 18,
-                temple_mm: product.templeMm || product.temple_mm || 142,
-                size_category:
-                    product.sizeCategory ||
-                    product.size_category ||
-                    mapWidthToSizeCategory(product.frameWidth, sizeChart),
-                frame_style: product.frameStyle || product.frame_style || 'rectangle',
-                color: product.color || 'Black',
-                material: product.material || 'Acetate',
-                price_idr: product.priceIdr || product.price_idr || 299000,
-                customer_size_category: customerProfile?.sizeCategory || undefined,
-                customer_width_mm: customerProfile?.widthMm || undefined,
-                trigger: triggerSource,
+        (product) => {
+            const sku = String(product?.sku || product?.id || '')
+            if (!sku || !memberClient.isMember() || lastTrackedSkuRef.current === sku) return
+            lastTrackedSkuRef.current = sku
+            memberClient.trackEvent('frame_tried', { frame_sku: sku }, 'glasses_try_on').catch(() => {
+                lastTrackedSkuRef.current = ''
             })
         },
-        [sizeChart, customerProfile?.sizeCategory, customerProfile?.widthMm]
+        [memberClient]
     )
 
-    // Sinkronisasi katalog bersama (`GET /api/catalog/size-chart` & `GET /api/catalog/frames`)
+    // Katalog frame dari DOOZ CRM (`GET /api/catalog/size-chart` & `GET /api/catalog/frames`)
     useEffect(() => {
         let active = true
         syncSharedCatalog()
@@ -193,7 +125,7 @@ export default function TryOnScreen() {
                 setAutoFilterApplied(true)
                 if (!initialTrackedRef.current) {
                     initialTrackedRef.current = true
-                    recordFrameTried(matchedBySku, 'url_deep_link')
+                    recordFrameTried(matchedBySku)
                 }
                 return
             }
@@ -203,7 +135,7 @@ export default function TryOnScreen() {
             ? urlSize
             : urlWidth > 0
               ? mapWidthToSizeCategory(urlWidth, sizeChart)
-              : customerProfile?.source === 'portal_session' || customerProfile?.source === 'lead_state'
+              : customerProfile?.source === 'member'
                 ? customerProfile.sizeCategory
                 : null
 
@@ -214,7 +146,7 @@ export default function TryOnScreen() {
                 setSelectedProduct(matchingFrame)
                 if (!initialTrackedRef.current) {
                     initialTrackedRef.current = true
-                    recordFrameTried(matchingFrame, 'auto_size_match')
+                    recordFrameTried(matchingFrame)
                 }
             }
             setAutoFilterApplied(true)
@@ -240,10 +172,10 @@ export default function TryOnScreen() {
     }, [products, customerProfile?.sizeCategory])
 
     const handleProductChange = useCallback(
-        (product, triggerSource = 'carousel_select') => {
+        (product) => {
             if (!product) return
             setSelectedProduct(product)
-            recordFrameTried(product, triggerSource)
+            recordFrameTried(product)
         },
         [recordFrameTried]
     )
@@ -260,7 +192,7 @@ export default function TryOnScreen() {
             if (targetCat) {
                 const matching = products.filter((p) => p.sizeCategory === targetCat)
                 if (matching.length > 0 && !matching.some((m) => sameProduct(m, selectedProduct))) {
-                    handleProductChange(matching[0], `filter_size_${targetCat}`)
+                    handleProductChange(matching[0])
                 }
             }
         },
@@ -272,7 +204,7 @@ export default function TryOnScreen() {
             const list = filteredProducts.length > 0 ? filteredProducts : products
             const currentIndex = list.findIndex((p) => sameProduct(p, selectedProduct))
             const nextIndex = (currentIndex + delta + list.length) % list.length
-            handleProductChange(list[nextIndex], delta < 0 ? 'carousel_prev' : 'carousel_next')
+            handleProductChange(list[nextIndex])
         },
         [filteredProducts, products, selectedProduct, handleProductChange]
     )
@@ -294,28 +226,15 @@ export default function TryOnScreen() {
         setFitInfo(info)
     }, [])
 
-    const savedChoices = useMemo(() => {
-        const list = [...triedProducts]
-        if (selectedProduct && !list.some((p) => sameProduct(p, selectedProduct))) list.unshift(selectedProduct)
-        return list
-    }, [triedProducts, selectedProduct])
-
     const isFitForCustomer = Boolean(
         customerProfile?.sizeCategory && selectedProduct?.sizeCategory === customerProfile.sizeCategory
     )
-    const hasMeasurement = ['url_param', 'portal_session', 'lead_state'].includes(customerProfile?.source)
+    const hasMeasurement = ['url_param', 'member'].includes(customerProfile?.source)
     const cameraEstimate = customerProfile?.source === 'camera_biometric'
 
     return (
         <div className="app">
-            <AppHeader
-                subtitle="Coba Kacamata"
-                actions={
-                    <NavLink to={PATHS.kartu} className="dz-header-link">
-                        Kartu Member Saya
-                    </NavLink>
-                }
-            />
+            <AppHeader subtitle="Coba Kacamata" actions={<MemberDoozButton />} />
 
             {/* Ukuran customer & filter frame */}
             <section className="tryon-sizebar" aria-label="Filter ukuran frame">
@@ -336,7 +255,7 @@ export default function TryOnScreen() {
                         <span className="dz-muted">Belum tahu ukuran frame kamu?</span>
                     )}
                     {!hasMeasurement && (
-                        <a className="dz-link" href={UKUR_FRAME_URL}>
+                        <a className="dz-link" href={UKUR_URL}>
                             Ukur dulu
                         </a>
                     )}
@@ -401,7 +320,7 @@ export default function TryOnScreen() {
                             <button
                                 key={product.sku || product.id}
                                 className={`product-thumb ${sameProduct(selectedProduct, product) ? 'active' : ''}`}
-                                onClick={() => handleProductChange(product, 'carousel_thumb')}
+                                onClick={() => handleProductChange(product)}
                                 aria-label={`Coba ${product.name}`}
                                 title={`${product.name} · ${product.frameWidth} mm · ${product.sizeCategory}`}
                             >
@@ -466,28 +385,10 @@ export default function TryOnScreen() {
             )}
 
             <footer className="footer">
-                <button
-                    className="dz-btn dz-btn--outline dz-btn--lg"
-                    onClick={handleScreenshot}
-                    aria-label="Simpan foto"
-                    title="Simpan foto"
-                >
-                    📸
-                </button>
-                <button className="dz-btn dz-btn--orange dz-btn--lg" onClick={() => setShowLeadModal(true)}>
-                    Simpan pilihan saya
+                <button className="dz-btn dz-btn--outline dz-btn--lg" onClick={handleScreenshot} title="Simpan foto ke HP">
+                    📸 Simpan foto
                 </button>
             </footer>
-
-            <LeadCaptureModal
-                isOpen={showLeadModal}
-                onClose={() => setShowLeadModal(false)}
-                selectedProduct={selectedProduct}
-                fitInfo={fitInfo}
-                customerProfile={customerProfile}
-                triedProducts={savedChoices}
-                sizeChart={sizeChart}
-            />
         </div>
     )
 }
