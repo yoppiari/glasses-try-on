@@ -21,6 +21,7 @@ func main() {
 	officialWA := envOrDefault("DOOZ_OFFICIAL_WA", "6281122334455")
 	portalURL := envOrDefault("DOOZ_PORTAL_URL", "https://crm.dooz.id")
 	staticDir := envOrDefault("HUB_STATIC_DIR", "")
+	ukurAppURL := envOrDefault("UKUR_APP_URL", hub.DefaultUkurAppURL)
 
 	flag.StringVar(&port, "port", port, "HTTP listen port")
 	flag.StringVar(&dbPath, "db", dbPath, "Path to persistent JSON/SQLite-compatible store")
@@ -46,6 +47,7 @@ func main() {
 		FonnteDeviceID:   deviceID,
 		OfficialWANumber: officialWA,
 		PortalBaseURL:    portalURL,
+		UkurAppURL:       ukurAppURL,
 		StaticDir:        staticDir,
 		WebhookRateLimit: 30,
 		RateLimitWindow:  time.Minute,

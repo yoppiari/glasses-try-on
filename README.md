@@ -177,6 +177,10 @@ go build -o customer-hub ./cmd/customer-hub
 HUB_STATIC_DIR=./dist PORT=8089 ./customer-hub
 ```
 
+API **"Ukuran Saya"** (multi-ukuran member, polling verifikasi App Ukur, "Masuk lewat WhatsApp"):
+lihat [docs/api-ukuran-saya.md](docs/api-ukuran-saya.md). Env opsional `UKUR_APP_URL`
+(default `https://ukur-frame-dooz-pocco.fural.space`) menentukan tujuan magic link untuk App Ukur.
+
 ---
 
 ## Project Structure

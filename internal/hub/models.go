@@ -121,6 +121,19 @@ type VerificationCode struct {
 	UsedAt      *time.Time `json:"used_at,omitempty"`
 	UsedByPhone string     `json:"used_by_phone,omitempty"`
 	CreatedAt   time.Time  `json:"created_at"`
+
+	// "Ukuran Saya" & polling App Ukur (Layar 5) — migrations/003_member_measurements.sql
+	PollTokenHash      string            `json:"poll_token_hash,omitempty"` // sha256(poll_token); token mentah hanya dipegang App Ukur
+	App                string            `json:"app,omitempty"`             // "ukur" bila identify dari App Ukur
+	PendingMeasurement *MeasurementInput `json:"pending_measurement,omitempty"`
+	FullNameInput      string            `json:"full_name_input,omitempty"`
+	CityInput          string            `json:"city_input,omitempty"`
+	ConsentCRMWAInput  bool              `json:"consent_crm_wa_input,omitempty"`
+	VerifiedContactID  string            `json:"verified_contact_id,omitempty"`
+	VerifiedAt         *time.Time        `json:"verified_at,omitempty"`
+	NewMember          bool              `json:"new_member,omitempty"`       // kontak pertama kali terverifikasi oleh kode ini
+	RecycledPending    bool              `json:"recycled_pending,omitempty"` // akun lama >6 bulan pasif: sesi dibatasi
+	SessionClaimedAt   *time.Time        `json:"session_claimed_at,omitempty"`
 }
 
 type MagicLink struct {

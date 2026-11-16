@@ -476,6 +476,10 @@ func (s *Store) PerformKasirLevel2Action(qrToken, eventType string, payload Even
 		CreatedAt: now,
 	}
 	s.data.Events = append(s.data.Events, ev)
+	if eventType == EventFrameMeasured {
+		// Ukuran yang diukur di outlet masuk ke "Ukuran Saya" member (source=outlet).
+		s.addOutletMeasurementLocked(contact.ID, payload, now)
+	}
 
 	s.appendAuditLogLocked(
 		actorUserID,

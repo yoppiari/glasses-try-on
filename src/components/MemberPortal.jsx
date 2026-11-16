@@ -15,7 +15,30 @@ import {
   revokeAllSessions,
   updatePortalConsent,
   requestPrivacyDeletion,
+  setPrimaryMeasurement,
+  deleteMeasurement,
 } from '../sdk/doozCapture'
+
+const MEASUREMENT_SOURCE_LABEL = {
+  self_measure: 'Ukur sendiri',
+  outlet: 'Diukur di outlet',
+  temple_label: 'Dari gagang kacamata',
+}
+
+const COMFORT_LABEL = {
+  pas_nyaman: '😊 Pas & nyaman',
+  kurang_nyaman: '😐 Kurang nyaman',
+  tidak_pas: '❌ Tidak pas',
+}
+
+function formatShortDate(iso) {
+  if (!iso) return ''
+  try {
+    return new Date(iso).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+  } catch {
+    return ''
+  }
+}
 
 /**
  * Generates a deterministic 21x21 QR-style SVG matrix from a signed rotating token (`DQR1...`).
@@ -109,10 +132,43 @@ function buildOfflineDemoView(recycledMode = false) {
     },
   }
   if (recycledMode) {
-    return baseView
+    return { ...baseView, primary_size_category: 'M' }
   }
+  const demoMeasurements = [
+    {
+      id: 'demo-meas-1',
+      name: 'Kerja',
+      note: 'Nyaman dipakai seharian',
+      frame_width_mm: 138,
+      size_category: 'M',
+      lens_mm: null,
+      bridge_mm: null,
+      temple_mm: null,
+      comfort: 'pas_nyaman',
+      is_primary: true,
+      source: 'self_measure',
+      created_at: new Date(now.getTime() - 3 * 86400 * 1000).toISOString(),
+    },
+    {
+      id: 'demo-meas-2',
+      name: 'Baca',
+      note: '',
+      frame_width_mm: 132,
+      size_category: 'S',
+      lens_mm: 52,
+      bridge_mm: 18,
+      temple_mm: 140,
+      comfort: null,
+      is_primary: false,
+      source: 'temple_label',
+      created_at: new Date(now.getTime() - 86400 * 1000).toISOString(),
+    },
+  ]
   return {
     ...baseView,
+    primary_size_category: 'M',
+    primary_measurement: demoMeasurements[0],
+    measurements: demoMeasurements,
     full_name: 'Rina Kartika',
     city_regency: 'Kota Surakarta (Solo)',
     qr_token: `DQR1.eyJjaWQiOiJkZW1vLWNpZCIsIm1jIjoiRE9PWi00ODIxOSIsImV4cCI6${Math.floor(
@@ -457,6 +513,59 @@ export default function MemberPortal({
     setStatusBanner('QR sudah diperbarui.')
   }
 
+  // "Ukuran Saya": jadikan ukuran utama / hapus ukuran
+  const [measurementBusy, setMeasurementBusy] = useState('')
+  const isDemoSession = () => String(getStoredPortalSession()?.session_token || '').startsWith('demo-sess-')
+
+  const handleSetPrimaryMeasurement = async (id) => {
+    setErrorBanner('')
+    if (isDemoSession()) {
+      setPortalView((v) => {
+        const list = (v?.measurements || []).map((m) => ({ ...m, is_primary: m.id === id }))
+        const primary = list.find((m) => m.is_primary)
+        return { ...v, measurements: list, primary_measurement: primary, primary_size_category: primary?.size_category }
+      })
+      setStatusBanner('Ukuran utama sudah diganti.')
+      return
+    }
+    setMeasurementBusy(id)
+    try {
+      await setPrimaryMeasurement(id)
+      await loadPortalSession()
+      setStatusBanner('Ukuran utama sudah diganti. Kasir akan melihat ukuran ini.')
+    } catch (err) {
+      setErrorBanner(err?.message || 'Gagal mengganti ukuran utama.')
+    } finally {
+      setMeasurementBusy('')
+    }
+  }
+
+  const handleDeleteMeasurement = async (id) => {
+    setErrorBanner('')
+    if (typeof window !== 'undefined' && !window.confirm('Hapus ukuran ini?')) return
+    if (isDemoSession()) {
+      setPortalView((v) => {
+        let list = (v?.measurements || []).filter((m) => m.id !== id)
+        if (list.length > 0 && !list.some((m) => m.is_primary)) {
+          list = list.map((m, idx) => ({ ...m, is_primary: idx === 0 }))
+        }
+        const primary = list.find((m) => m.is_primary)
+        return { ...v, measurements: list, primary_measurement: primary, primary_size_category: primary?.size_category }
+      })
+      return
+    }
+    setMeasurementBusy(id)
+    try {
+      await deleteMeasurement(id)
+      await loadPortalSession()
+      setStatusBanner('Ukuran sudah dihapus.')
+    } catch (err) {
+      setErrorBanner(err?.message || 'Gagal menghapus ukuran.')
+    } finally {
+      setMeasurementBusy('')
+    }
+  }
+
   // Revoke all sessions ("Keluar dari Semua Perangkat")
   const handleRevokeAll = async () => {
     setErrorBanner('')
@@ -548,9 +657,14 @@ export default function MemberPortal({
   const waMasukUrl = `https://wa.me/${DEFAULT_OFFICIAL_WA}?text=${encodeURIComponent('MASUK')}`
   const waKeluarUrl = `https://wa.me/${DEFAULT_OFFICIAL_WA}?text=${encodeURIComponent('KELUAR')}`
 
+  // Kartu Member menampilkan ukuran utama "Ukuran Saya"; fallback ke hasil ukur terakhir (member lama).
+  const primaryMeas = portalView?.primary_measurement
   const latest = portalView?.latest_measurement
-  const sizeCat = latest?.size_category || 'M'
-  const widthMm = latest?.frame_width_mm || 138
+  const sizeCat = primaryMeas?.size_category || portalView?.primary_size_category || latest?.size_category || 'M'
+  const widthMm = primaryMeas?.frame_width_mm || latest?.frame_width_mm || 138
+  const bridgeMm = primaryMeas ? primaryMeas.bridge_mm : latest?.bridge_mm || 18
+  const templeMm = primaryMeas ? primaryMeas.temple_mm : latest?.temple_mm || 142
+  const measurements = portalView?.measurements || []
 
   return (
     <div className="dz-page">
@@ -786,6 +900,10 @@ export default function MemberPortal({
                     <div className="member-card__meta">
                       {portalView.full_name} · {portalView.phone_masked}
                     </div>
+                    <div className="member-card__meta">
+                      Ukuran utama: <strong>{sizeCat} · {widthMm} mm</strong>
+                      {primaryMeas?.name ? ` (${primaryMeas.name})` : ''}
+                    </div>
                   </div>
                   <span className="dz-chip dz-chip--orange">Member</span>
                 </div>
@@ -803,14 +921,19 @@ export default function MemberPortal({
               </section>
 
               <div className="dz-card">
-                <span className="dz-eyebrow">Ukuran frame saya</span>
+                <span className="dz-eyebrow">{primaryMeas ? '⭐ Ukuran utama' : 'Ukuran frame saya'}</span>
                 <div className="dz-size-row" style={{ margin: '10px 0 12px' }}>
                   <span className="dz-size-badge">{sizeCat}</span>
                   <div>
                     <div className="dz-size-row__mm">{widthMm} mm</div>
-                    <div className="dz-small">
-                      Jembatan hidung {latest?.bridge_mm || 18} mm · Gagang {latest?.temple_mm || 142} mm
-                    </div>
+                    {primaryMeas?.name && <div className="dz-small"><strong>{primaryMeas.name}</strong></div>}
+                    {(bridgeMm || templeMm) && (
+                      <div className="dz-small">
+                        {bridgeMm ? `Jembatan hidung ${bridgeMm} mm` : ''}
+                        {bridgeMm && templeMm ? ' · ' : ''}
+                        {templeMm ? `Gagang ${templeMm} mm` : ''}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="dz-scale" aria-label="Panduan ukuran XS sampai XL">
@@ -840,6 +963,59 @@ export default function MemberPortal({
                   </button>
                 )}
               </div>
+
+              {measurements.length > 0 && (
+                <div className="dz-card">
+                  <h2 className="dz-subtitle" style={{ marginBottom: 4 }}>
+                    Ukuran Saya ({measurements.length})
+                  </h2>
+                  <p className="dz-small" style={{ marginBottom: 10 }}>
+                    Ukuran utama tampil di Kartu Member dan dilihat kasir. Tambah ukuran baru lewat App Ukur DOOZ.
+                  </p>
+                  <ul className="dz-list">
+                    {measurements.map((m) => (
+                      <li key={m.id} className="dz-list-item">
+                        <div>
+                          <strong>
+                            {m.is_primary ? '⭐ ' : ''}
+                            {m.name}
+                          </strong>
+                          <span className="item-sub">
+                            {m.size_category} · {m.frame_width_mm} mm
+                            {m.lens_mm && m.bridge_mm ? ` · ${m.lens_mm}□${m.bridge_mm}${m.temple_mm ? `-${m.temple_mm}` : ''}` : ''}
+                            {' · '}
+                            {MEASUREMENT_SOURCE_LABEL[m.source] || m.source}
+                            {m.created_at ? ` · ${formatShortDate(m.created_at)}` : ''}
+                          </span>
+                          {m.comfort && <span className="item-sub">{COMFORT_LABEL[m.comfort] || m.comfort}</span>}
+                          {m.note && <span className="item-sub">“{m.note}”</span>}
+                        </div>
+                        <div className="dz-row" style={{ gap: 6 }}>
+                          {!m.is_primary && (
+                            <button
+                              type="button"
+                              className="dz-btn dz-btn--outline dz-btn--sm"
+                              disabled={measurementBusy === m.id}
+                              onClick={() => handleSetPrimaryMeasurement(m.id)}
+                            >
+                              Jadikan utama
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className="dz-btn dz-btn--ghost dz-btn--sm"
+                            disabled={measurementBusy === m.id}
+                            onClick={() => handleDeleteMeasurement(m.id)}
+                            aria-label={`Hapus ukuran ${m.name}`}
+                          >
+                            Hapus
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               <div className="dz-card">
                 <h2 className="dz-subtitle" style={{ marginBottom: 10 }}>

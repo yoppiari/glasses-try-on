@@ -11,6 +11,18 @@ import {
   kasirFetchDemoMemberQR,
 } from '../sdk/doozCapture'
 
+const MEASUREMENT_SOURCE_LABEL = {
+  self_measure: 'ukur sendiri',
+  outlet: 'diukur di outlet',
+  temple_label: 'dari gagang kacamata',
+}
+
+const COMFORT_LABEL = {
+  pas_nyaman: '😊 Pas & nyaman',
+  kurang_nyaman: '😐 Kurang nyaman',
+  tidak_pas: '❌ Tidak pas',
+}
+
 const ACTION_LABELS = {
   store_visit: 'Kunjungan',
   voucher_claimed: 'Klaim voucher',
@@ -398,12 +410,13 @@ export default function KasirOutletPanel() {
                   <strong>{level1Result.phone_masked}</strong>
                 </div>
                 <div className="dz-kv__item">
-                  <span>Ukuran frame</span>
+                  <span>Ukuran utama</span>
                   <strong>
-                    {level1Result.latest_measurement
-                      ? `${level1Result.latest_measurement.frame_width_mm} mm · ${level1Result.latest_measurement.size_category}`
+                    {(level1Result.primary_measurement || level1Result.latest_measurement)?.size_category
+                      ? `Kategori ${(level1Result.primary_measurement || level1Result.latest_measurement).size_category}`
                       : 'Belum diukur'}
                   </strong>
+                  <span className="dz-small">Detail mm & daftar ukuran terbuka setelah scan Kartu Member</span>
                 </div>
                 <div className="dz-kv__item">
                   <span>Terkunci</span>
@@ -473,11 +486,13 @@ export default function KasirOutletPanel() {
                   </strong>
                 </div>
                 <div className="dz-kv__item">
-                  <span>Ukuran frame</span>
+                  <span>⭐ Ukuran utama</span>
                   <strong>
-                    {level2Result.latest_measurement
-                      ? `${level2Result.latest_measurement.frame_width_mm} mm · ${level2Result.latest_measurement.size_category} · jembatan ${level2Result.latest_measurement.bridge_mm || 18} mm`
-                      : '138 mm · M'}
+                    {level2Result.primary_measurement
+                      ? `${level2Result.primary_measurement.size_category} · ${level2Result.primary_measurement.frame_width_mm} mm · ${level2Result.primary_measurement.name}`
+                      : level2Result.latest_measurement
+                        ? `${level2Result.latest_measurement.frame_width_mm} mm · ${level2Result.latest_measurement.size_category}`
+                        : 'Belum diukur'}
                   </strong>
                 </div>
                 <div className="dz-kv__item">
@@ -540,6 +555,37 @@ export default function KasirOutletPanel() {
                   </button>
                 </div>
               </div>
+
+              {(level2Result.measurements || []).length > 0 && (
+                <div className="dz-card dz-card--plain">
+                  <h3>Ukuran Saya member ({level2Result.measurements.length})</h3>
+                  <ul className="dz-list">
+                    {level2Result.measurements.map((m) => (
+                      <li key={m.id} className="dz-list-item">
+                        <div>
+                          <strong>
+                            {m.is_primary ? '⭐ ' : ''}
+                            {m.name}
+                          </strong>
+                          <span className="item-sub">
+                            {m.size_category} · {m.frame_width_mm} mm
+                            {m.lens_mm && m.bridge_mm ? ` · ${m.lens_mm}□${m.bridge_mm}${m.temple_mm ? `-${m.temple_mm}` : ''}` : ''}
+                            {' · '}
+                            {MEASUREMENT_SOURCE_LABEL[m.source] || m.source}
+                          </span>
+                          {(m.comfort || m.note) && (
+                            <span className="item-sub">
+                              {m.comfort ? COMFORT_LABEL[m.comfort] || m.comfort : ''}
+                              {m.comfort && m.note ? ' · ' : ''}
+                              {m.note}
+                            </span>
+                          )}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               <div className="dooz-portal-middle-grid">
                 <div className="dz-card dz-card--plain">

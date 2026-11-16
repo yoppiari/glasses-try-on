@@ -311,6 +311,11 @@ func FormatVerificationReply(memberCode, sizeSummary, magicLinkURL string, requi
 	return sb.String()
 }
 
+// FormatNotMemberReply dibalas saat kode "Masuk lewat WhatsApp" dikirim dari nomor yang belum menjadi member.
+func FormatNotMemberReply() string {
+	return "Halo! Nomor WhatsApp ini belum terdaftar sebagai *Member Kacamata DOOZ*.\n\nUkur frame kamu di App Ukur DOOZ, lalu pilih *Simpan & jadi Member* untuk mendaftar. Gratis, cukup lewat WhatsApp." + AntiPhishingFooter
+}
+
 func FormatLogoutReply(memberCode string) string {
 	return fmt.Sprintf("✅ Seluruh sesi aktif untuk Member *%s* telah dicabut dari semua perangkat. Ketik *MASUK* kapan saja jika ingin mengakses kembali.%s", memberCode, AntiPhishingFooter)
 }

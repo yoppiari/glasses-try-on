@@ -19,11 +19,15 @@ type ServerConfig struct {
 	FonnteDeviceID   string
 	OfficialWANumber string
 	PortalBaseURL    string
+	UkurAppURL       string // App Ukur (ukur-frame-dooz): tujuan magic link "Masuk lewat WhatsApp"
 	StaticDir        string // folder hasil build web (dist/); kosong = hanya API + halaman pengganti
 	WebhookRateLimit int    // max requests per window per sender/IP
 	RateLimitWindow  time.Duration
 	Clock            func() time.Time
 }
+
+// DefaultUkurAppURL adalah preview App Ukur (ukur-frame-dooz) yang memanggil API member/identify/status.
+const DefaultUkurAppURL = "https://ukur-frame-dooz-pocco.fural.space"
 
 type Server struct {
 	cfg        ServerConfig
@@ -62,6 +66,9 @@ func NewServer(cfg ServerConfig) *Server {
 	if strings.TrimSpace(cfg.PortalBaseURL) == "" {
 		cfg.PortalBaseURL = "https://crm.dooz.id"
 	}
+	if strings.TrimSpace(cfg.UkurAppURL) == "" {
+		cfg.UkurAppURL = DefaultUkurAppURL
+	}
 	if cfg.WebhookRateLimit <= 0 {
 		cfg.WebhookRateLimit = 20
 	}
@@ -83,8 +90,11 @@ func NewServer(cfg ServerConfig) *Server {
 
 func (s *Server) Handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Autentikasi member memakai Bearer token (bukan cookie), jadi wildcard origin aman dan
+		// mengizinkan App Ukur (https://ukur-frame-dooz-pocco.fural.space) memanggil API lintas origin.
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Max-Age", "600")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, If-None-Match, X-Fonnte-Secret, X-Staff-User-ID, X-Staff-Role, X-Staff-Outlet-ID")
 		w.Header().Set("Access-Control-Expose-Headers", "ETag, Cache-Control")
 		if r.Method == http.MethodOptions {
@@ -116,6 +126,9 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/portal/sessions/revoke-all", s.handlePortalRevokeAllSessions)
 	s.mux.HandleFunc("/api/portal/consents", s.handlePortalUpdateConsent)
 	s.mux.HandleFunc("/api/portal/privacy/delete", s.handlePortalDeleteData)
+
+	// "Ukuran Saya" (multi-ukuran member), polling verifikasi App Ukur & "Masuk lewat WhatsApp"
+	s.registerMeasurementRoutes()
 
 	// Cashier Outlet (2-Level Access & Walk-In)
 	s.mux.HandleFunc("/api/kasir/lookup-phone", s.handleKasirLookupPhone)
@@ -211,6 +224,7 @@ func (s *Server) handleCaptureIdentify(w http.ResponseWriter, r *http.Request) {
 			ExpiresAt:        req.Now.Add(VerificationCodeTTL),
 			WAMeURL:          waURL,
 			UniformMessage:   "Silakan kirim pesan WhatsApp berisi kode verifikasi untuk menerima hasil ukur dan kartu member DOOZ.",
+			PollToken:        GenerateSecureToken(24),
 		})
 		return
 	}
@@ -332,7 +346,8 @@ func (s *Server) handleFonnteWebhook(w http.ResponseWriter, r *http.Request) {
 	cmd := ParseInboundCommand(payload.Message)
 	switch cmd.Kind {
 	case "VERIFY_DZ":
-		contact, ml, sizeSummary, err := s.cfg.Store.VerifyByWebhookDZCode(cmd.Code, senderNorm, now)
+		// DZ-xxxx bisa berupa kode pendaftaran (identify) atau kode "Masuk lewat WhatsApp".
+		res, err := s.cfg.Store.ProcessInboundDZCode(cmd.Code, senderNorm, now)
 		if err != nil {
 			// Single-use / expired code: do NOT reply repeatedly (anti-spam: 1 code DZ-xxxx replied only 1 time)
 			writeJSON(w, http.StatusOK, map[string]any{
@@ -343,8 +358,19 @@ func (s *Server) handleFonnteWebhook(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		magicURL := fmt.Sprintf("%s/kartu-member?token=%s", strings.TrimRight(s.cfg.PortalBaseURL, "/"), ml.Token)
-		replyText := FormatVerificationReply(contact.MemberCode, sizeSummary, magicURL, ml.RequiresNameConfirm)
+		if res.NotMember {
+			_, _ = s.cfg.ReplyQueue.EnqueueReply(senderNorm, cmd.Code, FormatNotMemberReply())
+			writeJSON(w, http.StatusOK, map[string]any{
+				"ok":      true,
+				"status":  "queued",
+				"command": "VERIFY_DZ",
+				"kind":    res.Kind,
+				"result":  "not_member",
+			})
+			return
+		}
+		magicURL := s.magicLinkURLFor(res)
+		replyText := FormatVerificationReply(res.Contact.MemberCode, res.SizeSummary, magicURL, res.MagicLink.RequiresNameConfirm)
 		_, _ = s.cfg.ReplyQueue.EnqueueReply(senderNorm, cmd.Code, replyText)
 
 		// Security requirement #1: NEVER return magic_link in HTTP response!
@@ -352,7 +378,8 @@ func (s *Server) handleFonnteWebhook(w http.ResponseWriter, r *http.Request) {
 			"ok":          true,
 			"status":      "queued",
 			"command":     "VERIFY_DZ",
-			"member_code": contact.MemberCode,
+			"kind":        res.Kind,
+			"member_code": res.Contact.MemberCode,
 		})
 
 	case "MASUK", "DATA":

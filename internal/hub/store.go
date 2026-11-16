@@ -23,6 +23,8 @@ type storeSnapshot struct {
 	AuditLogs         []AuditLog                   `json:"audit_logs"`
 	SizeChart         []SizeChartEntry             `json:"size_chart"`
 	CatalogFrames     map[string]*CatalogFrame     `json:"catalog_frames"`
+	Measurements      map[string]*Measurement      `json:"measurements"`   // "Ukuran Saya" (member_measurements)
+	LoginRequests     map[string]*LoginRequest     `json:"login_requests"` // "Masuk lewat WhatsApp" (whatsapp_login_requests)
 }
 
 type Store struct {
@@ -50,6 +52,8 @@ func NewStore(filePath string, signer *SecuritySigner) (*Store, error) {
 			AuditLogs:         make([]AuditLog, 0),
 			SizeChart:         DefaultSizeChart(time.Now().UTC()),
 			CatalogFrames:     DefaultCatalogFramesMap(time.Now().UTC()),
+			Measurements:      make(map[string]*Measurement),
+			LoginRequests:     make(map[string]*LoginRequest),
 		},
 	}
 	if s.filePath != "" && s.filePath != ":memory:" {
@@ -88,7 +92,14 @@ func (s *Store) loadFromDisk() error {
 	if snap.CatalogFrames == nil {
 		snap.CatalogFrames = make(map[string]*CatalogFrame)
 	}
+	if snap.Measurements == nil {
+		snap.Measurements = make(map[string]*Measurement)
+	}
+	if snap.LoginRequests == nil {
+		snap.LoginRequests = make(map[string]*LoginRequest)
+	}
 	s.data = snap
+	s.ensureAllMeasurementInvariantsLocked()
 	s.ensureCatalogSeededLocked(time.Now().UTC())
 	return nil
 }
@@ -140,7 +151,9 @@ func (s *Store) uniqueMemberCodeLocked() string {
 func (s *Store) uniqueVerificationCodeLocked() string {
 	for {
 		code := GenerateVerificationCodeStr()
-		if _, exists := s.data.VerificationCodes[code]; !exists {
+		_, existsVC := s.data.VerificationCodes[code]
+		_, existsLR := s.data.LoginRequests[code]
+		if !existsVC && !existsLR {
 			return code
 		}
 	}
@@ -160,9 +173,13 @@ type IdentifyLeadInput struct {
 	GrantHealth       bool         `json:"consent_health_prescription"`
 	Honeypot          string       `json:"honeypot,omitempty"`
 	TurnstileToken    string       `json:"turnstile_token,omitempty"`
-	IPAddress         string       `json:"-"`
-	UserAgent         string       `json:"-"`
-	Now               time.Time    `json:"-"`
+	// Measurement (opsional, App Ukur): ukuran yang disimpan sebagai ukuran utama setelah verifikasi WA DZ-xxxx.
+	Measurement *MeasurementInput `json:"measurement,omitempty"`
+	// App (opsional): "ukur" bila dipanggil dari App Ukur (link masuk WA untuk akun lama diarahkan ke App Ukur).
+	App       string    `json:"app,omitempty"`
+	IPAddress string    `json:"-"`
+	UserAgent string    `json:"-"`
+	Now       time.Time `json:"-"`
 }
 
 type IdentifyLeadResult struct {
@@ -171,6 +188,18 @@ type IdentifyLeadResult struct {
 	ExpiresAt        time.Time `json:"expires_at"`
 	WAMeURL          string    `json:"wa_me_url"`
 	UniformMessage   string    `json:"message"`
+	// PollToken: rahasia sekali tampil untuk POST /api/capture/verification-status (hanya disimpan hash-nya).
+	PollToken string `json:"poll_token"`
+	// Measurement: pratinjau ukuran yang akan disimpan (kategori dihitung dari Katalog Bersama).
+	Measurement *MeasurementPreview `json:"measurement,omitempty"`
+}
+
+// MeasurementPreview: ringkasan ukuran yang akan disimpan setelah verifikasi ("Yang disimpan: Ukuran M · 136 mm").
+type MeasurementPreview struct {
+	Name         string  `json:"name"`
+	FrameWidthMM float64 `json:"frame_width_mm"`
+	SizeCategory string  `json:"size_category"`
+	Source       string  `json:"source"`
 }
 
 // UpsertLeadPending saves a pending lead, records optional event & consents, and issues a single-use DZ-xxxx code (TTL 30m).
@@ -182,6 +211,14 @@ func (s *Store) UpsertLeadPending(in IdentifyLeadInput, officialWANumber string)
 	now := in.Now
 	if now.IsZero() {
 		now = time.Now().UTC()
+	}
+	var pendingMeas *MeasurementInput
+	if in.Measurement != nil {
+		norm, err := normalizeMeasurementInput(*in.Measurement, false)
+		if err != nil {
+			return nil, err
+		}
+		pendingMeas = &norm
 	}
 
 	s.mu.Lock()
@@ -264,12 +301,32 @@ func (s *Store) UpsertLeadPending(in IdentifyLeadInput, officialWANumber string)
 
 	dzCode := s.uniqueVerificationCodeLocked()
 	exp := now.Add(VerificationCodeTTL)
+	pollTok := GenerateSecureToken(24)
 	s.data.VerificationCodes[dzCode] = &VerificationCode{
-		Code:       dzCode,
-		ContactID:  contact.ID,
-		PhoneInput: normPhone,
-		ExpiresAt:  exp,
-		CreatedAt:  now,
+		Code:               dzCode,
+		ContactID:          contact.ID,
+		PhoneInput:         normPhone,
+		ExpiresAt:          exp,
+		CreatedAt:          now,
+		PollTokenHash:      hashPollToken(pollTok),
+		App:                normalizeAppName(in.App),
+		PendingMeasurement: pendingMeas,
+		FullNameInput:      strings.TrimSpace(in.FullName),
+		CityInput:          strings.TrimSpace(in.CityRegency),
+		ConsentCRMWAInput:  in.GrantCRMWAConsent,
+	}
+	var preview *MeasurementPreview
+	if pendingMeas != nil {
+		name := pendingMeas.Name
+		if name == "" {
+			name = DefaultFirstMeasurementName
+		}
+		preview = &MeasurementPreview{
+			Name:         name,
+			FrameWidthMM: pendingMeas.FrameWidthMM,
+			SizeCategory: s.MatchSizeCategoryLocked(pendingMeas.FrameWidthMM).Category,
+			Source:       pendingMeas.Source,
+		}
 	}
 
 	_ = s.persistLocked()
@@ -287,6 +344,8 @@ func (s *Store) UpsertLeadPending(in IdentifyLeadInput, officialWANumber string)
 		ExpiresAt:        exp,
 		WAMeURL:          waURL,
 		UniformMessage:   "Silakan kirim pesan WhatsApp berisi kode verifikasi untuk menerima hasil ukur dan kartu member DOOZ.",
+		PollToken:        pollTok,
+		Measurement:      preview,
 	}, nil
 }
 
@@ -481,83 +540,134 @@ func (s *Store) CreateManualWalkIn(fullName, phoneRaw, cityRegency, outletID, ac
 
 // VerifyByWebhookDZCode consumes a single-use DZ-xxxx code (TTL 30m), binds the contact's verified phone
 // to the ACTUAL webhook sender phone (even if the user mistyped 1 digit in the web form), marks status='verified',
-// and generates a one-time MagicLink (TTL 15m).
+// saves the pending "Ukuran Saya" measurement, and generates a one-time MagicLink (TTL 15m).
 func (s *Store) VerifyByWebhookDZCode(code, actualSenderPhone string, now time.Time) (*Contact, *MagicLink, string, error) {
 	senderNorm, err := NormalizePhone(actualSenderPhone)
 	if err != nil {
 		return nil, nil, "", err
 	}
-	if now.IsZero() {
-		now = time.Now().UTC()
-	}
-	upperCode := strings.ToUpper(strings.TrimSpace(code))
-
+	now = nowOr(now)
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	res, err := s.verifyRegistrationCodeLocked(strings.ToUpper(strings.TrimSpace(code)), senderNorm, now)
+	if err != nil {
+		return nil, nil, "", err
+	}
+	return res.Contact, res.MagicLink, res.SizeSummary, nil
+}
 
+func (s *Store) verifyRegistrationCodeLocked(upperCode, senderNorm string, now time.Time) (*InboundDZResult, error) {
 	vc, ok := s.data.VerificationCodes[upperCode]
 	if !ok || vc.UsedAt != nil || now.After(vc.ExpiresAt) {
-		return nil, nil, "", ErrVerificationCodeInvalid
+		return nil, ErrVerificationCodeInvalid
 	}
 
 	pendingContact, ok := s.data.Contacts[vc.ContactID]
 	if !ok {
-		return nil, nil, "", ErrContactNotFound
+		return nil, ErrContactNotFound
 	}
 
 	// Check if actualSenderPhone belongs to an existing contact different from pendingContact
 	existingBySender := s.findContactByPhoneLocked(senderNorm)
 	var targetContact *Contact
-	if existingBySender != nil && existingBySender.ID != pendingContact.ID {
-		// Merge events and consents from pendingContact into existingBySender
+	switch {
+	case existingBySender != nil && existingBySender.ID != pendingContact.ID:
 		targetContact = existingBySender
-		for i := range s.data.Events {
-			if s.data.Events[i].ContactID == pendingContact.ID {
-				s.data.Events[i].ContactID = targetContact.ID
+		if pendingContact.VerificationStatus != StatusVerified {
+			// Merge events, consents & measurements from pendingContact into existingBySender
+			for i := range s.data.Events {
+				if s.data.Events[i].ContactID == pendingContact.ID {
+					s.data.Events[i].ContactID = targetContact.ID
+				}
 			}
-		}
-		for i := range s.data.Consents {
-			if s.data.Consents[i].ContactID == pendingContact.ID {
-				s.data.Consents[i].ContactID = targetContact.ID
+			for i := range s.data.Consents {
+				if s.data.Consents[i].ContactID == pendingContact.ID {
+					s.data.Consents[i].ContactID = targetContact.ID
+				}
 			}
+			s.moveMeasurementsLocked(pendingContact.ID, targetContact.ID, now)
+			if targetContact.FullName == "" {
+				targetContact.FullName = pendingContact.FullName
+			}
+			if targetContact.CityRegency == "" {
+				targetContact.CityRegency = pendingContact.CityRegency
+			}
+			delete(s.data.Contacts, pendingContact.ID)
 		}
-		if targetContact.FullName == "" {
-			targetContact.FullName = pendingContact.FullName
+		// else: the typed number belongs to ANOTHER verified member — never merge/delete their account.
+	case pendingContact.VerificationStatus == StatusVerified && pendingContact.PhoneNormalized != senderNorm:
+		// The typed number belongs to another verified member, and the sender has no account yet:
+		// never rebind someone else's verified account to this sender. Create the sender's own contact.
+		targetContact = &Contact{
+			ID:                 GenerateUUID(),
+			MemberCode:         s.uniqueMemberCodeLocked(),
+			PhoneNormalized:    senderNorm,
+			PhoneMasked:        MaskPhoneDisplay(senderNorm),
+			FullName:           vc.FullNameInput,
+			CityRegency:        vc.CityInput,
+			VerificationStatus: StatusPending,
+			LastActiveAt:       now,
+			CreatedAt:          now,
+			UpdatedAt:          now,
 		}
-		if targetContact.CityRegency == "" {
-			targetContact.CityRegency = pendingContact.CityRegency
+		s.data.Contacts[targetContact.ID] = targetContact
+		if vc.ConsentCRMWAInput {
+			s.upsertConsentLocked(targetContact.ID, ConsentCRMWA, true, "", "", now)
 		}
-		delete(s.data.Contacts, pendingContact.ID)
-	} else {
+	default:
 		// Rebind pendingContact to the actual sender's phone number from the webhook!
 		targetContact = pendingContact
 		targetContact.PhoneNormalized = senderNorm
 		targetContact.PhoneMasked = MaskPhoneDisplay(senderNorm)
 	}
 
+	newMember := targetContact.VerificationStatus != StatusVerified
+	recycled := !newMember && IsRecycledNumberPassive(targetContact.LastActiveAt, now)
+
 	targetContact.VerificationStatus = StatusVerified
-	targetContact.LastActiveAt = now
+	if !recycled {
+		targetContact.LastActiveAt = now
+	}
 	targetContact.UpdatedAt = now
 
 	usedTime := now
 	vc.UsedAt = &usedTime
 	vc.UsedByPhone = senderNorm
+	vc.VerifiedContactID = targetContact.ID
+	vc.VerifiedAt = &usedTime
+	vc.NewMember = newMember
+	vc.RecycledPending = recycled
+
+	// "Ukuran Saya": ukuran dari identify App Ukur disimpan setelah nomor terverifikasi.
+	// Member baru -> ukuran utama; member lama -> ditambahkan ke daftar (ukuran utama tidak berubah).
+	if vc.PendingMeasurement != nil {
+		if _, err := s.addMeasurementLocked(targetContact.ID, *vc.PendingMeasurement, false, now); err == nil {
+			vc.PendingMeasurement = nil
+		}
+	}
 
 	ml := &MagicLink{
 		Token:               GenerateSecureToken(24),
 		ContactID:           targetContact.ID,
-		RequiresNameConfirm: false,
+		RequiresNameConfirm: recycled,
 		ExpiresAt:           now.Add(MagicLinkTTL),
 		CreatedAt:           now,
 	}
 	s.data.MagicLinks[ml.Token] = ml
 
-	sizeSummary := s.latestMeasurementSummaryLocked(targetContact.ID)
+	sizeSummary := s.sizeSummaryLocked(targetContact.ID)
 	_ = s.persistLocked()
 
 	cpContact := *targetContact
 	cpML := *ml
-	return &cpContact, &cpML, sizeSummary, nil
+	return &InboundDZResult{
+		Kind:        "register",
+		Contact:     &cpContact,
+		MagicLink:   &cpML,
+		SizeSummary: sizeSummary,
+		App:         vc.App,
+		NewMember:   newMember,
+	}, nil
 }
 
 // CreateMagicLinkForInboundCommand creates a magic link when an existing verified user sends MASUK or DATA.
@@ -594,7 +704,7 @@ func (s *Store) CreateMagicLinkForInboundCommand(actualSenderPhone string, now t
 	}
 	s.data.MagicLinks[ml.Token] = ml
 
-	sizeSummary := s.latestMeasurementSummaryLocked(contact.ID)
+	sizeSummary := s.sizeSummaryLocked(contact.ID)
 	_ = s.persistLocked()
 
 	cpContact := *contact
@@ -795,6 +905,9 @@ type MemberPortalView struct {
 	CityRegency         string         `json:"city_regency,omitempty"`
 	VerificationStatus  string         `json:"verification_status"`
 	LatestMeasurement   *EventPayload  `json:"latest_measurement,omitempty"`
+	PrimarySizeCategory string         `json:"primary_size_category,omitempty"` // kategori ukuran utama (XS–XL)
+	PrimaryMeasurement  *Measurement   `json:"primary_measurement,omitempty"`   // hanya scope full
+	Measurements        []Measurement  `json:"measurements,omitempty"`          // "Ukuran Saya", hanya scope full
 	TriedFrames         []ContactEvent `json:"tried_frames,omitempty"`
 	StoreVisits         []ContactEvent `json:"store_visits,omitempty"`
 	Vouchers            []ContactEvent `json:"vouchers,omitempty"`
@@ -833,9 +946,15 @@ func (s *Store) GetPortalViewBySession(sessionToken string, now time.Time) (*Mem
 		VerificationStatus:  contact.VerificationStatus,
 		LatestMeasurement:   latestMeas,
 	}
+	primary := s.primaryMeasurementLocked(contact.ID)
+	if primary != nil {
+		view.PrimarySizeCategory = primary.SizeCategory
+	}
 
 	if sess.AccessScope == AccessScopeFull {
 		view.ContactID = contact.ID
+		view.PrimaryMeasurement = primary
+		view.Measurements = s.listMeasurementsLocked(contact.ID)
 		view.FullName = contact.FullName
 		view.CityRegency = contact.CityRegency
 		view.TriedFrames = s.filterEventsLocked(contact.ID, EventFrameTried, 0)
@@ -905,13 +1024,15 @@ func (s *Store) contactConsentsLocked(contactID string) []Consent {
 }
 
 type KasirLevel1Response struct {
-	AccessLevel       string         `json:"access_level"` // level_1_lookup
-	ContactID         string         `json:"contact_id"`
-	MemberCode        string         `json:"member_code"`
-	FirstNameInitial  string         `json:"first_name_initial"`
-	PhoneMasked       string         `json:"phone_masked"` // 0812****4567
-	LatestMeasurement *EventPayload  `json:"latest_measurement,omitempty"`
-	RecentTriedFrames []ContactEvent `json:"recent_tried_frames"` // max 3
+	AccessLevel      string `json:"access_level"` // level_1_lookup
+	ContactID        string `json:"contact_id"`
+	MemberCode       string `json:"member_code"`
+	FirstNameInitial string `json:"first_name_initial"`
+	PhoneMasked      string `json:"phone_masked"` // 0812****4567
+	// Level 1 hanya melihat KATEGORI ukuran (XS–XL): tanpa mm, nama, catatan, atau daftar "Ukuran Saya".
+	PrimaryMeasurement *KasirMeasurementCategory `json:"primary_measurement,omitempty"`
+	LatestMeasurement  *KasirMeasurementCategory `json:"latest_measurement,omitempty"`
+	RecentTriedFrames  []ContactEvent            `json:"recent_tried_frames"` // max 3
 }
 
 // LookupContactLevel1 performs Cashier Level 1 lookup by FULL WhatsApp number.
@@ -944,25 +1065,44 @@ func (s *Store) LookupContactLevel1(fullPhoneRaw, actorUserID, role, outletID st
 	}
 
 	return &KasirLevel1Response{
-		AccessLevel:       AuditLevel1Lookup,
-		ContactID:         contact.ID,
-		MemberCode:        contact.MemberCode,
-		FirstNameInitial:  MaskFirstName(contact.FullName),
-		PhoneMasked:       MaskPhoneDisplay(contact.PhoneNormalized),
-		LatestMeasurement: s.latestMeasurementPayloadLocked(contact.ID),
-		RecentTriedFrames: s.filterEventsLocked(contact.ID, EventFrameTried, 3),
+		AccessLevel:        AuditLevel1Lookup,
+		ContactID:          contact.ID,
+		MemberCode:         contact.MemberCode,
+		FirstNameInitial:   MaskFirstName(contact.FullName),
+		PhoneMasked:        MaskPhoneDisplay(contact.PhoneNormalized),
+		PrimaryMeasurement: s.level1CategoryLocked(contact.ID, true),
+		LatestMeasurement:  s.level1CategoryLocked(contact.ID, false),
+		RecentTriedFrames:  s.filterEventsLocked(contact.ID, EventFrameTried, 3),
 	}, nil
 }
 
 type KasirLevel2Response struct {
-	AccessLevel       string         `json:"access_level"` // level_2_qr
-	Contact           Contact        `json:"contact"`
-	LatestMeasurement *EventPayload  `json:"latest_measurement,omitempty"`
-	TriedFrames       []ContactEvent `json:"tried_frames"`
-	StoreVisits       []ContactEvent `json:"store_visits"`
-	Vouchers          []ContactEvent `json:"vouchers"`
-	Purchases         []ContactEvent `json:"purchases"`
-	Consents          []Consent      `json:"consents"`
+	AccessLevel       string        `json:"access_level"` // level_2_qr
+	Contact           Contact       `json:"contact"`
+	LatestMeasurement *EventPayload `json:"latest_measurement,omitempty"`
+	// Level 2 (scan QR): ukuran utama + seluruh daftar "Ukuran Saya".
+	PrimaryMeasurement *Measurement   `json:"primary_measurement,omitempty"`
+	Measurements       []Measurement  `json:"measurements"`
+	TriedFrames        []ContactEvent `json:"tried_frames"`
+	StoreVisits        []ContactEvent `json:"store_visits"`
+	Vouchers           []ContactEvent `json:"vouchers"`
+	Purchases          []ContactEvent `json:"purchases"`
+	Consents           []Consent      `json:"consents"`
+}
+
+// level1CategoryLocked mengembalikan kategori ukuran saja (Level 1). primaryOnly=false memberi fallback ke
+// hasil ukur terakhir (event frame_measured) untuk member yang belum punya "Ukuran Saya".
+func (s *Store) level1CategoryLocked(contactID string, primaryOnly bool) *KasirMeasurementCategory {
+	if p := s.primaryMeasurementLocked(contactID); p != nil {
+		return &KasirMeasurementCategory{SizeCategory: p.SizeCategory}
+	}
+	if primaryOnly {
+		return nil
+	}
+	if lm := s.latestMeasurementPayloadLocked(contactID); lm != nil && lm.SizeCategory != "" {
+		return &KasirMeasurementCategory{SizeCategory: lm.SizeCategory}
+	}
+	return nil
 }
 
 // LookupContactLevel2ByQR verifies the customer's rotating signed QR token, unlocks full profile access,
@@ -1003,14 +1143,16 @@ func (s *Store) LookupContactLevel2ByQR(qrToken, actorUserID, role, outletID str
 	cpContact.PhoneMasked = MaskPhoneDisplay(cpContact.PhoneNormalized)
 	// Keep raw phone hidden from UI display even in Level 2 JSON by masking PhoneNormalized if needed, or keeping PhoneMasked prominent
 	return &KasirLevel2Response{
-		AccessLevel:       AuditLevel2QR,
-		Contact:           cpContact,
-		LatestMeasurement: s.latestMeasurementPayloadLocked(contact.ID),
-		TriedFrames:       s.filterEventsLocked(contact.ID, EventFrameTried, 0),
-		StoreVisits:       s.filterEventsLocked(contact.ID, EventStoreVisit, 0),
-		Vouchers:          s.filterEventsLocked(contact.ID, EventVoucherClaimed, 0),
-		Purchases:         s.filterEventsLocked(contact.ID, EventPurchase, 0),
-		Consents:          s.contactConsentsLocked(contact.ID),
+		AccessLevel:        AuditLevel2QR,
+		Contact:            cpContact,
+		LatestMeasurement:  s.latestMeasurementPayloadLocked(contact.ID),
+		PrimaryMeasurement: s.primaryMeasurementLocked(contact.ID),
+		Measurements:       s.listMeasurementsLocked(contact.ID),
+		TriedFrames:        s.filterEventsLocked(contact.ID, EventFrameTried, 0),
+		StoreVisits:        s.filterEventsLocked(contact.ID, EventStoreVisit, 0),
+		Vouchers:           s.filterEventsLocked(contact.ID, EventVoucherClaimed, 0),
+		Purchases:          s.filterEventsLocked(contact.ID, EventPurchase, 0),
+		Consents:           s.contactConsentsLocked(contact.ID),
 	}, nil
 }
 
@@ -1096,6 +1238,7 @@ func (s *Store) PurgeInactiveRetention(actorUserID string, now time.Time) (int, 
 
 func (s *Store) deleteContactCascadeLocked(contactID string) {
 	delete(s.data.Contacts, contactID)
+	s.deleteContactMeasurementsLocked(contactID) // UU PDP: semua "Ukuran Saya" ikut terhapus
 
 	filteredEvents := s.data.Events[:0]
 	for _, ev := range s.data.Events {
@@ -1114,7 +1257,7 @@ func (s *Store) deleteContactCascadeLocked(contactID string) {
 	s.data.Consents = filteredConsents
 
 	for code, vc := range s.data.VerificationCodes {
-		if vc.ContactID == contactID {
+		if vc.ContactID == contactID || vc.VerifiedContactID == contactID {
 			delete(s.data.VerificationCodes, code)
 		}
 	}

@@ -614,6 +614,9 @@ export async function identify(input = {}, options = {}) {
     honeypot,
     turnstile_token: turnstileToken || 'dooz-turnstile-verified-v1',
   }
+  // "Ukuran Saya": ukuran disimpan sebagai ukuran utama setelah verifikasi WA DZ-xxxx.
+  if (input.measurement) requestBody.measurement = input.measurement
+  if (input.app) requestBody.app = input.app
 
   const uniformMessage =
     'Silakan kirim pesan WhatsApp berisi kode verifikasi untuk menerima hasil ukur dan kartu member DOOZ.'
@@ -653,6 +656,8 @@ export async function identify(input = {}, options = {}) {
       full_name: fullName,
       city_regency: cityRegency,
       latest_payload: payload,
+      poll_token: data.poll_token || '',
+      measurement: data.measurement || null,
       saved_at: new Date().toISOString(),
     }
     safeStorageSet(STORAGE_KEYS.LEAD_STATE, leadState)
@@ -1036,6 +1041,93 @@ export async function requestPrivacyDeletion(immediate = true, sessionToken, opt
 }
 
 /* ============================================================================
+ * "Ukuran Saya" (multi-ukuran member) — kontrak: docs/api-ukuran-saya.md
+ * ============================================================================ */
+
+async function memberMeasurementRequest(path, method, body, sessionToken, options = {}) {
+  const base = resolveApiBase(options)
+  const tok = sessionToken || getStoredPortalSession()?.session_token
+  if (!tok) throw new Error('Sesi belum aktif.')
+  const headers = { Authorization: `Bearer ${tok}` }
+  if (body !== undefined) headers['Content-Type'] = 'application/json'
+  const resp = await fetch(`${base}${path}`, {
+    method,
+    referrerPolicy: 'no-referrer',
+    headers,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  })
+  const data = await resp.json()
+  if (!resp.ok) {
+    const err = new Error(data.error || 'Gagal memproses Ukuran Saya.')
+    err.status = resp.status
+    throw err
+  }
+  return data
+}
+
+/** `GET /api/portal/measurements` → { measurements, primary_measurement, count, max } */
+export function listMeasurements(sessionToken, options = {}) {
+  return memberMeasurementRequest('/api/portal/measurements', 'GET', undefined, sessionToken, options)
+}
+
+/** `POST /api/portal/measurements` (ukur lagi: frame_width_mm; dari gagang: temple_label "52□18-140") */
+export function createMeasurement(input = {}, sessionToken, options = {}) {
+  return memberMeasurementRequest('/api/portal/measurements', 'POST', input, sessionToken, options)
+}
+
+/** `PATCH /api/portal/measurements/{id}` — hanya name, note, comfort (null = kosongkan) */
+export function updateMeasurement(id, patch = {}, sessionToken, options = {}) {
+  return memberMeasurementRequest(`/api/portal/measurements/${encodeURIComponent(id)}`, 'PATCH', patch, sessionToken, options)
+}
+
+/** `DELETE /api/portal/measurements/{id}` → { primary_measurement } (utama baru bila yang dihapus utama) */
+export function deleteMeasurement(id, sessionToken, options = {}) {
+  return memberMeasurementRequest(`/api/portal/measurements/${encodeURIComponent(id)}`, 'DELETE', undefined, sessionToken, options)
+}
+
+/** `POST /api/portal/measurements/{id}/primary` — jadikan ukuran utama */
+export function setPrimaryMeasurement(id, sessionToken, options = {}) {
+  return memberMeasurementRequest(`/api/portal/measurements/${encodeURIComponent(id)}/primary`, 'POST', undefined, sessionToken, options)
+}
+
+/** `POST /api/capture/verification-status` — polling Layar 5 / "Masuk lewat WhatsApp" */
+export async function pollVerificationStatus(verificationCode, pollToken, options = {}) {
+  const base = resolveApiBase(options)
+  const resp = await fetch(`${base}/api/capture/verification-status`, {
+    method: 'POST',
+    referrerPolicy: 'no-referrer',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ verification_code: verificationCode, poll_token: pollToken }),
+  })
+  const data = await resp.json()
+  if (resp.status === 404) return { status: 'not_found' }
+  if (!resp.ok) throw new Error(data.error || 'Gagal memeriksa status verifikasi.')
+  if (data.status === 'verified' && data.session_token) {
+    setStoredPortalSession({
+      ...(getStoredPortalSession() || {}),
+      session_token: data.session_token,
+      access_scope: data.access_scope,
+      member_code: data.member_code,
+    })
+  }
+  return data
+}
+
+/** `POST /api/auth/whatsapp-login` — "Masuk lewat WhatsApp" untuk member di HP lain */
+export async function requestWhatsAppLogin(app = 'ukur', options = {}) {
+  const base = resolveApiBase(options)
+  const resp = await fetch(`${base}/api/auth/whatsapp-login`, {
+    method: 'POST',
+    referrerPolicy: 'no-referrer',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ app }),
+  })
+  const data = await resp.json()
+  if (!resp.ok) throw new Error(data.error || 'Gagal membuat permintaan masuk lewat WhatsApp.')
+  return data
+}
+
+/* ============================================================================
  * Shared Catalog (Single Source of Truth: XS-XL Size Chart & Active DOOZ SKUs)
  * ============================================================================ */
 
@@ -1232,12 +1324,9 @@ export async function kasirLookupPhone(phone, staffContext = { role: 'kasir', us
         member_code: 'DOOZ-48219',
         first_name_initial: 'Rina K.',
         phone_masked: check.masked,
-        latest_measurement: {
-          frame_width_mm: 138,
-          bridge_mm: 18,
-          temple_mm: 142,
-          size_category: 'M',
-        },
+        // Level 1: hanya kategori ukuran utama (tanpa mm / daftar ukuran)
+        primary_measurement: { size_category: 'M' },
+        latest_measurement: { size_category: 'M' },
         recent_tried_frames: [
           {
             id: 'ev-try-1',
@@ -1292,6 +1381,50 @@ export async function kasirScanQR(qrToken, staffContext = { role: 'kasir', userI
           temple_mm: 142,
           size_category: 'M',
         },
+        primary_measurement: {
+          id: 'demo-meas-1',
+          name: 'Kerja',
+          note: 'Nyaman dipakai seharian',
+          frame_width_mm: 138,
+          size_category: 'M',
+          lens_mm: null,
+          bridge_mm: 18,
+          temple_mm: 142,
+          comfort: 'pas_nyaman',
+          is_primary: true,
+          source: 'self_measure',
+          created_at: new Date().toISOString(),
+        },
+        measurements: [
+          {
+            id: 'demo-meas-1',
+            name: 'Kerja',
+            note: 'Nyaman dipakai seharian',
+            frame_width_mm: 138,
+            size_category: 'M',
+            lens_mm: null,
+            bridge_mm: 18,
+            temple_mm: 142,
+            comfort: 'pas_nyaman',
+            is_primary: true,
+            source: 'self_measure',
+            created_at: new Date().toISOString(),
+          },
+          {
+            id: 'demo-meas-2',
+            name: 'Baca',
+            note: '',
+            frame_width_mm: 132,
+            size_category: 'S',
+            lens_mm: 52,
+            bridge_mm: 18,
+            temple_mm: 140,
+            comfort: null,
+            is_primary: false,
+            source: 'temple_label',
+            created_at: new Date().toISOString(),
+          },
+        ],
         tried_frames: [
           {
             id: 'ev-try-1',
@@ -1568,6 +1701,13 @@ const DoozCaptureSDK = {
   revokeAllSessions,
   updatePortalConsent,
   requestPrivacyDeletion,
+  listMeasurements,
+  createMeasurement,
+  updateMeasurement,
+  deleteMeasurement,
+  setPrimaryMeasurement,
+  pollVerificationStatus,
+  requestWhatsAppLogin,
   getStoredPortalSession,
   setStoredPortalSession,
   clearStoredPortalSession,

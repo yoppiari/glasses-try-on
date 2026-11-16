@@ -495,6 +495,8 @@ func (s *Store) UpdateSizeChart(entries []SizeChartEntry, recalculateFrames bool
 	defer s.mu.Unlock()
 
 	s.data.SizeChart = normalized
+	// Kategori "Ukuran Saya" selalu diturunkan dari mm + size-chart Katalog Bersama (SSOT).
+	s.recalculateMeasurementCategoriesLocked(now)
 	if recalculateFrames {
 		for _, f := range s.data.CatalogFrames {
 			if f.FrameWidthMM > 0 {
