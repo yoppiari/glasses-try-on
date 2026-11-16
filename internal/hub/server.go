@@ -121,16 +121,25 @@ func (s *Server) registerRoutes() {
 	// Cashier Outlet (2-Level Access & Walk-In)
 	s.mux.HandleFunc("/api/kasir/lookup-phone", s.handleKasirLookupPhone)
 	s.mux.HandleFunc("/api/kasir/scan-qr", s.handleKasirScanQR)
+	s.mux.HandleFunc("/api/kasir/level2-action", s.handleKasirLevel2Action)
 	s.mux.HandleFunc("/api/kasir/walkin", s.handleKasirWalkIn)
+	s.mux.HandleFunc("/api/kasir/demo-member-qr", s.handleKasirDemoMemberQR)
 
 	// Attribution Links
 	s.mux.HandleFunc("/api/attribution/sign", s.handleAttributionSign)
 	s.mux.HandleFunc("/api/attribution/verify", s.handleAttributionVerify)
 
-	// Admin & UU PDP Governance
+	// Admin CRM Dashboard & UU PDP Governance
+	s.mux.HandleFunc("/api/admin/dashboard", s.handleAdminDashboard)
+	s.mux.HandleFunc("/api/admin/stats", s.handleAdminDashboard)
 	s.mux.HandleFunc("/api/admin/audit-logs", s.handleAdminAuditLogs)
 	s.mux.HandleFunc("/api/admin/contacts/export.csv", s.handleAdminExportCSV)
 	s.mux.HandleFunc("/api/admin/retention/purge", s.handleAdminRetentionPurge)
+
+	// OBS Live Counter (Privacy-Safe Masked Overlay)
+	s.mux.HandleFunc("/api/live/counter", s.handleLiveCounter)
+	s.mux.HandleFunc("/live-counter", s.handleLiveCounterWebPage)
+	s.mux.HandleFunc("/live-counter/", s.handleLiveCounterWebPage)
 
 	// Shared Catalog (Single Source of Truth: XS-XL Size Chart & Active DOOZ Frame SKUs)
 	s.mux.HandleFunc("/api/catalog/size-chart", s.handleCatalogSizeChart)

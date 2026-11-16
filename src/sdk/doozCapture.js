@@ -1205,6 +1205,346 @@ export async function adminImportCatalog(payload, staffContext = {}, options = {
   return data
 }
 
+/* ============================================================================
+ * Mode Kasir Outlet (2 Level Akses + Walk-In), Dashboard CRM & OBS Live Counter
+ * ============================================================================ */
+
+export async function kasirLookupPhone(phone, staffContext = { role: 'kasir', userId: 'kasir-gading-01', outletId: 'outlet-solo-gading' }, options = {}) {
+  const check = normalizePhone(phone)
+  if (!check.valid) {
+    throw new Error(check.error || 'Masukkan nomor WhatsApp lengkap (tidak bisa cari nama sebagian).')
+  }
+  const base = resolveApiBase(options)
+  try {
+    const resp = await fetch(`${base}/api/kasir/lookup-phone`, {
+      method: 'POST',
+      headers: buildStaffHeaders(staffContext),
+      body: JSON.stringify({ phone: check.normalized }),
+    })
+    const data = await resp.json()
+    if (!resp.ok) throw new Error(data.error || 'Member tidak ditemukan untuk nomor WA tersebut.')
+    return data
+  } catch (err) {
+    if (String(err.message).includes('Failed to fetch') || err.name === 'TypeError') {
+      return {
+        access_level: 'level_1_lookup',
+        contact_id: 'demo-contact-1',
+        member_code: 'DOOZ-48219',
+        first_name_initial: 'Rina K.',
+        phone_masked: check.masked,
+        latest_measurement: {
+          frame_width_mm: 138,
+          bridge_mm: 18,
+          temple_mm: 142,
+          size_category: 'M',
+        },
+        recent_tried_frames: [
+          {
+            id: 'ev-try-1',
+            event_type: 'frame_tried',
+            src: 'glasses_try_on',
+            created_at: new Date().toISOString(),
+            payload: { frame_sku: 'DOOZ-CLS-001', frame_name: 'Classic Black', frame_width_mm: 138, size_category: 'M' },
+          },
+          {
+            id: 'ev-try-2',
+            event_type: 'frame_tried',
+            src: 'glasses_try_on',
+            created_at: new Date().toISOString(),
+            payload: { frame_sku: 'DOOZ-RND-003', frame_name: 'Retro Round', frame_width_mm: 132, size_category: 'S' },
+          },
+        ],
+        offline_demo: true,
+      }
+    }
+    throw err
+  }
+}
+
+export async function kasirScanQR(qrToken, staffContext = { role: 'kasir', userId: 'kasir-gading-01', outletId: 'outlet-solo-gading' }, options = {}) {
+  const clean = String(qrToken || '').trim()
+  if (!clean) throw new Error('Token QR Dinamis member wajib diisi atau dipindai.')
+  const base = resolveApiBase(options)
+  try {
+    const resp = await fetch(`${base}/api/kasir/scan-qr`, {
+      method: 'POST',
+      headers: buildStaffHeaders(staffContext),
+      body: JSON.stringify({ qr_token: clean }),
+    })
+    const data = await resp.json()
+    if (!resp.ok) throw new Error(data.error || 'Token QR Dinamis tidak valid atau sudah kedaluwarsa.')
+    return data
+  } catch (err) {
+    if (String(err.message).includes('Failed to fetch') || err.name === 'TypeError' || clean.startsWith('DQR1.DEMO')) {
+      return {
+        access_level: 'level_2_qr',
+        contact: {
+          id: 'demo-contact-1',
+          member_code: 'DOOZ-48219',
+          full_name: 'Rina Kartika',
+          phone_masked: '0812****7766',
+          city_regency: 'Kota Surakarta (Solo)',
+          verification_status: 'verified',
+        },
+        latest_measurement: {
+          frame_width_mm: 138,
+          bridge_mm: 18,
+          temple_mm: 142,
+          size_category: 'M',
+        },
+        tried_frames: [
+          {
+            id: 'ev-try-1',
+            event_type: 'frame_tried',
+            src: 'glasses_try_on',
+            created_at: new Date().toISOString(),
+            payload: { frame_sku: 'DOOZ-CLS-001', frame_name: 'Classic Black', frame_width_mm: 138, size_category: 'M' },
+          },
+        ],
+        store_visits: [
+          {
+            id: 'ev-vis-1',
+            event_type: 'store_visit',
+            src: 'outlet_solo_gading',
+            created_at: new Date().toISOString(),
+            payload: { outlet_id: 'DOOZ Optik Gading Solo', notes: 'Konsultasi frame & fitting lensa' },
+          },
+        ],
+        vouchers: [
+          {
+            id: 'ev-vch-1',
+            event_type: 'voucher_claimed',
+            src: 'live_tiktok',
+            created_at: new Date().toISOString(),
+            payload: { voucher_code: 'LIVE-DOOZ50K', amount_idr: 50000, notes: 'Voucher Potongan Rp 50.000 Sesi Live' },
+          },
+        ],
+        purchases: [],
+        consents: [{ scope: 'crm_wa', granted: true }],
+        offline_demo: true,
+      }
+    }
+    throw err
+  }
+}
+
+export async function kasirLevel2Action(qrToken, eventType, payload = {}, staffContext = { role: 'kasir', userId: 'kasir-gading-01', outletId: 'outlet-solo-gading' }, options = {}) {
+  const base = resolveApiBase(options)
+  const resp = await fetch(`${base}/api/kasir/level2-action`, {
+    method: 'POST',
+    headers: buildStaffHeaders(staffContext),
+    body: JSON.stringify({
+      qr_token: String(qrToken || '').trim(),
+      event_type: eventType,
+      payload,
+    }),
+  })
+  const data = await resp.json()
+  if (!resp.ok) throw new Error(data.error || 'Gagal mencatat aksi Kasir Level 2.')
+  return data
+}
+
+export async function kasirCreateWalkIn(input = {}, staffContext = { role: 'kasir', userId: 'kasir-gading-01', outletId: 'outlet-solo-gading' }, options = {}) {
+  const check = normalizePhone(input.phone || '')
+  if (!check.valid) throw new Error(check.error)
+  const base = resolveApiBase(options)
+  try {
+    const resp = await fetch(`${base}/api/kasir/walkin`, {
+      method: 'POST',
+      headers: buildStaffHeaders(staffContext),
+      body: JSON.stringify({
+        mode: input.mode || 'qr_wa',
+        full_name: String(input.full_name || '').trim(),
+        phone: check.normalized,
+        city_regency: String(input.city_regency || '').trim(),
+        payload: input.payload || {},
+      }),
+    })
+    const data = await resp.json()
+    if (!resp.ok) throw new Error(data.error || 'Gagal memproses pendaftaran walk-in.')
+    return data
+  } catch (err) {
+    if (String(err.message).includes('Failed to fetch') || err.name === 'TypeError') {
+      if (input.mode === 'manual') {
+        return {
+          mode: 'manual',
+          verification_status: 'unverified',
+          outbound_wa_sent: false,
+          contact: {
+            member_code: 'DOOZ-WALKIN',
+            full_name: input.full_name,
+            phone_masked: check.masked,
+            city_regency: input.city_regency,
+            verification_status: 'unverified',
+          },
+          offline_demo: true,
+        }
+      }
+      const dzCode = generateLocalDZCode()
+      return {
+        mode: 'qr_wa',
+        verification_code: dzCode,
+        wa_me_url: buildWAMeVerifyURL(dzCode),
+        expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+        offline_demo: true,
+      }
+    }
+    throw err
+  }
+}
+
+export async function kasirFetchDemoMemberQR(staffContext = { role: 'kasir', userId: 'kasir-gading-01', outletId: 'outlet-solo-gading' }, options = {}) {
+  const base = resolveApiBase(options)
+  try {
+    const resp = await fetch(`${base}/api/kasir/demo-member-qr`, {
+      method: 'POST',
+      headers: buildStaffHeaders(staffContext),
+    })
+    const data = await resp.json()
+    if (!resp.ok) throw new Error(data.error || 'Gagal membuat QR demo.')
+    return data
+  } catch {
+    return {
+      ok: true,
+      phone: '081299887766',
+      qr_token: 'DQR1.DEMO.SIGNATURE',
+      member_code: 'DOOZ-48219',
+      offline_demo: true,
+    }
+  }
+}
+
+export async function adminFetchDashboard(staffContext = { role: 'owner', userId: 'owner-dooz', outletId: 'hq-solo' }, options = {}) {
+  const base = resolveApiBase(options)
+  try {
+    const resp = await fetch(`${base}/api/admin/dashboard`, {
+      method: 'GET',
+      headers: buildStaffHeaders(staffContext),
+    })
+    const data = await resp.json()
+    if (!resp.ok) throw new Error(data.error || 'Gagal memuat analitik Dashboard CRM.')
+    return data
+  } catch (err) {
+    if (String(staffContext.role || '').toLowerCase() === 'kasir') {
+      throw new Error('forbidden: insufficient role permissions')
+    }
+    return {
+      total_contacts: 14,
+      verified_contacts: 11,
+      pending_contacts: 2,
+      unverified_contacts: 1,
+      verification_rate_pct: 78.5,
+      total_events: 38,
+      total_frames_measured: 16,
+      total_frames_tried: 15,
+      total_store_visits: 4,
+      total_vouchers_claimed: 3,
+      total_purchases: 2,
+      by_source: [
+        { key: 'live_tiktok', total_leads: 8, verified_leads: 7, pending_leads: 1, unverified_leads: 0, conversion_rate_pct: 87.5, frames_measured: 9, frames_tried: 8, store_visits: 2 },
+        { key: 'outlet_qr_kasir', total_leads: 4, verified_leads: 3, pending_leads: 0, unverified_leads: 1, conversion_rate_pct: 75.0, frames_measured: 4, frames_tried: 4, store_visits: 2 },
+        { key: 'glasses_try_on', total_leads: 2, verified_leads: 1, pending_leads: 1, unverified_leads: 0, conversion_rate_pct: 50.0, frames_measured: 3, frames_tried: 3, store_visits: 0 },
+      ],
+      by_host: [
+        { key: 'rina', total_leads: 6, verified_leads: 5, conversion_rate_pct: 83.3, frames_measured: 7, frames_tried: 6 },
+        { key: 'dinda', total_leads: 2, verified_leads: 2, conversion_rate_pct: 100.0, frames_measured: 2, frames_tried: 2 },
+      ],
+      by_session: [
+        { key: '20261116-malam', total_leads: 6, verified_leads: 5, conversion_rate_pct: 83.3, frames_measured: 7, frames_tried: 6 },
+        { key: '20261116-sore', total_leads: 2, verified_leads: 2, conversion_rate_pct: 100.0, frames_measured: 2, frames_tried: 2 },
+      ],
+      by_city: [
+        { key: 'Kota Surakarta (Solo)', total_leads: 6, verified_leads: 5, conversion_rate_pct: 83.3 },
+        { key: 'Kab. Sukoharjo', total_leads: 4, verified_leads: 3, conversion_rate_pct: 75.0 },
+        { key: 'Kota Yogyakarta', total_leads: 4, verified_leads: 3, conversion_rate_pct: 75.0 },
+      ],
+      size_distribution: { XS: 2, S: 3, M: 6, L: 2, XL: 1 },
+      attribution_links: [],
+      recent_audit_logs: [],
+      offline_demo: true,
+    }
+  }
+}
+
+export async function adminSignAttributionLink(input = {}, staffContext = { role: 'owner', userId: 'owner-dooz', outletId: 'hq-solo' }, options = {}) {
+  const base = resolveApiBase(options)
+  const resp = await fetch(`${base}/api/attribution/sign`, {
+    method: 'POST',
+    headers: buildStaffHeaders(staffContext),
+    body: JSON.stringify(input),
+  })
+  const data = await resp.json()
+  if (!resp.ok) throw new Error(data.error || 'Gagal membuat tautan atribusi bertanda tangan.')
+  return data
+}
+
+export async function adminExportContactsCSV(staffContext = { role: 'owner', userId: 'owner-dooz', outletId: 'hq-solo' }, options = {}) {
+  const base = resolveApiBase(options)
+  const resp = await fetch(`${base}/api/admin/contacts/export.csv`, {
+    method: 'GET',
+    headers: buildStaffHeaders(staffContext),
+  })
+  if (!resp.ok) {
+    const errData = await resp.json().catch(() => ({}))
+    throw new Error(errData.error || 'Akses ditolak: Ekspor CSV hanya untuk Owner / Admin.')
+  }
+  return await resp.text()
+}
+
+export async function adminPurgeInactiveRetention(staffContext = { role: 'owner', userId: 'owner-dooz', outletId: 'hq-solo' }, options = {}) {
+  const base = resolveApiBase(options)
+  const resp = await fetch(`${base}/api/admin/retention/purge`, {
+    method: 'POST',
+    headers: buildStaffHeaders(staffContext),
+  })
+  const data = await resp.json()
+  if (!resp.ok) throw new Error(data.error || 'Gagal menjalankan purge retensi >24 bulan.')
+  return data
+}
+
+export async function fetchLiveCounter(filters = {}, options = {}) {
+  const base = resolveApiBase(options)
+  const qs = new URLSearchParams()
+  if (filters.sesi) qs.set('sesi', filters.sesi)
+  if (filters.host) qs.set('host', filters.host)
+  if (filters.src) qs.set('src', filters.src)
+  const query = qs.toString() ? `?${qs.toString()}` : ''
+  try {
+    const resp = await fetch(`${base}/api/live/counter${query}`, { method: 'GET' })
+    if (!resp.ok) throw new Error('Gagal memuat live counter')
+    return await resp.json()
+  } catch {
+    return {
+      ok: true,
+      total_leads: 14,
+      verified_leads: 11,
+      total_events: 28,
+      size_breakdown: { XS: 2, S: 3, M: 6, L: 2, XL: 1 },
+      recent_toasts: [
+        {
+          id: 't-1',
+          masked_name: 'R***',
+          city_regency: 'Kota Surakarta (Solo)',
+          event_type: 'frame_measured',
+          size_category: 'M',
+          message: 'R*** · Kota Surakarta (Solo) baru saja ukur frame — Kategori M',
+          created_at: new Date().toISOString(),
+        },
+        {
+          id: 't-2',
+          masked_name: 'B***',
+          city_regency: 'Kab. Sukoharjo',
+          event_type: 'frame_tried',
+          size_category: 'L',
+          message: 'B*** · Kab. Sukoharjo mencoba virtual try-on Modern Aviator — Kategori L',
+          created_at: new Date().toISOString(),
+        },
+      ],
+      offline_demo: true,
+    }
+  }
+}
+
 // Expose global singleton when loaded in browser
 const DoozCaptureSDK = {
   normalizePhone,
@@ -1237,6 +1577,16 @@ const DoozCaptureSDK = {
   adminUpsertCatalogFrame,
   adminDeleteCatalogFrame,
   adminImportCatalog,
+  kasirLookupPhone,
+  kasirScanQR,
+  kasirLevel2Action,
+  kasirCreateWalkIn,
+  kasirFetchDemoMemberQR,
+  adminFetchDashboard,
+  adminSignAttributionLink,
+  adminExportContactsCSV,
+  adminPurgeInactiveRetention,
+  fetchLiveCounter,
   INDONESIA_CITIES,
   SIZE_CHART_DEFAULT,
   CATALOG_FRAMES_DEFAULT,

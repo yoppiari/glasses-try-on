@@ -888,3 +888,105 @@ func TestGlassesTryOnSharedCatalogAndFrameTriedSync(t *testing.T) {
 		t.Fatalf("expected Cashier Level 1 lookup to show tried frames (DOOZ-AVI-002, DOOZ-CLS-001, DOOZ-RND-003), got: %s", body)
 	}
 }
+
+func TestCrmDashboardKasirLevel2ActionsAndObsLiveCounter(t *testing.T) {
+	now := time.Date(2026, 11, 16, 17, 0, 0, 0, time.UTC)
+	clock := func() time.Time { return now }
+
+	signer := NewSecuritySigner("test-hmac-secret-dooz")
+	store, err := NewStore(t.TempDir()+"/hub_ops.json", signer)
+	if err != nil {
+		t.Fatalf("NewStore failed: %v", err)
+	}
+	fonnte := NewFonnteAdapter("mock-token", "DOOZ-WA-DEVICE-01")
+	queue := NewReplyQueue(fonnte, 5*time.Millisecond, 10*time.Millisecond)
+	defer queue.Close()
+
+	srv := NewServer(ServerConfig{
+		Store:            store,
+		Signer:           signer,
+		WAProvider:       fonnte,
+		ReplyQueue:       queue,
+		WebhookSecret:    "test-webhook-secret",
+		FonnteDeviceID:   "DOOZ-WA-DEVICE-01",
+		OfficialWANumber: "6281122334455",
+		PortalBaseURL:    "https://crm.dooz.id",
+		WebhookRateLimit: 20,
+		RateLimitWindow:  time.Minute,
+		Clock:            clock,
+	})
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	kasirHeaders := map[string]string{
+		"X-Staff-User-ID":   "kasir-gading-01",
+		"X-Staff-Role":      RoleKasir,
+		"X-Staff-Outlet-ID": "outlet-solo-gading",
+	}
+	ownerHeaders := map[string]string{
+		"X-Staff-User-ID":   "owner-yoppi",
+		"X-Staff-Role":      RoleOwner,
+		"X-Staff-Outlet-ID": "hq-solo",
+	}
+
+	// 1. Seed demo verified member & rotating QR token for Cashier
+	resp, body := doJSONRequest(t, ts.URL+"/api/kasir/demo-member-qr", http.MethodPost, nil, kasirHeaders)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("POST /api/kasir/demo-member-qr failed: %d %s", resp.StatusCode, body)
+	}
+	var demoQR struct {
+		Phone      string `json:"phone"`
+		QRToken    string `json:"qr_token"`
+		MemberCode string `json:"member_code"`
+	}
+	_ = json.Unmarshal([]byte(body), &demoQR)
+	if demoQR.QRToken == "" {
+		t.Fatalf("expected qr_token from demo-member-qr: %s", body)
+	}
+
+	// 2. Cashier records Level 2 action (`store_visit` & `voucher_claimed`) using rotating QR token
+	resp, body = doJSONRequest(t, ts.URL+"/api/kasir/level2-action", http.MethodPost, map[string]any{
+		"qr_token":   demoQR.QRToken,
+		"event_type": EventStoreVisit,
+		"payload": map[string]any{
+			"outlet_id": "outlet-solo-gading",
+			"notes":     "Fitting frame Classic Black & cek resep lensa",
+		},
+	}, kasirHeaders)
+	if resp.StatusCode != http.StatusOK || !strings.Contains(body, `"Fitting frame Classic Black`) {
+		t.Fatalf("POST /api/kasir/level2-action failed: %d %s", resp.StatusCode, body)
+	}
+
+	// 3. RBAC check: Kasir role MUST be blocked from Admin CRM Dashboard (`/api/admin/dashboard`)
+	resp, _ = doJSONRequest(t, ts.URL+"/api/admin/dashboard", http.MethodGet, nil, kasirHeaders)
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("expected 403 Forbidden for kasir accessing /api/admin/dashboard, got %d", resp.StatusCode)
+	}
+
+	// 4. Owner accesses Admin CRM Dashboard (`/api/admin/dashboard`)
+	resp, body = doJSONRequest(t, ts.URL+"/api/admin/dashboard", http.MethodGet, nil, ownerHeaders)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET /api/admin/dashboard for owner failed: %d %s", resp.StatusCode, body)
+	}
+	var dash AdminDashboardSummary
+	if err := json.Unmarshal([]byte(body), &dash); err != nil {
+		t.Fatalf("unmarshal dashboard summary failed: %v", err)
+	}
+	if dash.TotalContacts < 1 || dash.VerifiedContacts < 1 || len(dash.BySource) == 0 || len(dash.ByCity) == 0 {
+		t.Fatalf("unexpected dashboard stats: %+v", dash)
+	}
+
+	// 5. OBS Live Counter (`/api/live/counter` & `/live-counter`) returns privacy-masked toasts (`R***`) without exposing full name or phone
+	resp, body = doJSONRequest(t, ts.URL+"/api/live/counter", http.MethodGet, nil, nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET /api/live/counter failed: %d %s", resp.StatusCode, body)
+	}
+	if !strings.Contains(body, `"R***`) || strings.Contains(body, "Rina Kartika") || strings.Contains(body, "81299887766") {
+		t.Fatalf("OBS Live Counter must mask name as R*** and never leak full name/phone: %s", body)
+	}
+
+	resp, htmlBody := doJSONRequest(t, ts.URL+"/live-counter", http.MethodGet, nil, nil)
+	if resp.StatusCode != http.StatusOK || !strings.Contains(htmlBody, "DOOZ LIVE COUNTER") {
+		t.Fatalf("GET /live-counter HTML failed: %d", resp.StatusCode)
+	}
+}

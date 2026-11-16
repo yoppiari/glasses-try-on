@@ -3,6 +3,9 @@ import TryOnCanvas from './components/TryOnCanvas'
 import LeadCaptureModal from './components/LeadCaptureModal'
 import MemberPortal from './components/MemberPortal'
 import CatalogAdminPanel from './components/CatalogAdminPanel'
+import KasirOutletPanel from './components/KasirOutletPanel'
+import CrmAdminDashboard from './components/CrmAdminDashboard'
+import ObsLiveCounter from './components/ObsLiveCounter'
 import { getFitColor, getFitEmoji } from './utils/fitCalculator'
 import {
     DEFAULT_PRODUCTS,
@@ -36,6 +39,27 @@ function detectInitialView() {
     if (typeof window === 'undefined') return 'tryon'
     const path = window.location.pathname || ''
     const params = new URLSearchParams(window.location.search)
+    if (
+        path.endsWith('/kasir') ||
+        path.endsWith('/kasir/') ||
+        params.get('view') === 'kasir'
+    ) {
+        return 'kasir'
+    }
+    if (
+        path.endsWith('/admin/crm') ||
+        path.endsWith('/admin/crm/') ||
+        params.get('view') === 'crm-admin'
+    ) {
+        return 'crm-admin'
+    }
+    if (
+        path.endsWith('/live-counter') ||
+        path.endsWith('/live-counter/') ||
+        params.get('view') === 'live-counter'
+    ) {
+        return 'live-counter'
+    }
     if (
         path.endsWith('/admin/catalog') ||
         path.endsWith('/admin/catalog/') ||
@@ -436,6 +460,27 @@ export default function App() {
                     </button>
                     <button
                         type="button"
+                        className={`header-nav-btn ${activeView === 'kasir' ? 'active' : ''}`}
+                        onClick={() => setActiveView('kasir')}
+                    >
+                        🏪 Kasir Outlet
+                    </button>
+                    <button
+                        type="button"
+                        className={`header-nav-btn ${activeView === 'crm-admin' ? 'active' : ''}`}
+                        onClick={() => setActiveView('crm-admin')}
+                    >
+                        📊 Dashboard CRM
+                    </button>
+                    <button
+                        type="button"
+                        className={`header-nav-btn ${activeView === 'live-counter' ? 'active' : ''}`}
+                        onClick={() => setActiveView('live-counter')}
+                    >
+                        🔴 OBS Live
+                    </button>
+                    <button
+                        type="button"
                         className={`header-nav-btn ${activeView === 'catalog-admin' ? 'active' : ''}`}
                         onClick={() => setActiveView('catalog-admin')}
                     >
@@ -444,7 +489,16 @@ export default function App() {
                 </nav>
             </header>
 
-            {activeView === 'catalog-admin' ? (
+            {activeView === 'kasir' ? (
+                <KasirOutletPanel onBack={() => setActiveView('tryon')} />
+            ) : activeView === 'crm-admin' ? (
+                <CrmAdminDashboard
+                    onBack={() => setActiveView('tryon')}
+                    onOpenLiveCounter={() => setActiveView('live-counter')}
+                />
+            ) : activeView === 'live-counter' ? (
+                <ObsLiveCounter onBack={() => setActiveView('tryon')} />
+            ) : activeView === 'catalog-admin' ? (
                 <CatalogAdminPanel onBack={() => setActiveView('tryon')} />
             ) : activeView === 'portal' ? (
                 <MemberPortal
