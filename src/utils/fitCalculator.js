@@ -1,4 +1,5 @@
 import { LANDMARKS } from './landmarkIndices'
+import { mapWidthToSizeCategory } from '../sdk/doozCapture'
 
 /**
  * Fit Calculator
@@ -125,13 +126,20 @@ export function calculateFitConfidence(landmarks, product) {
         recommendation = 'Consider a larger frame size'
     }
 
+    const faceSizeCategory = mapWidthToSizeCategory(faceWidth)
+    const frameSizeCategory =
+        product.sizeCategory || product.size_category || mapWidthToSizeCategory(frameWidth)
+
     return {
         fitLabel,
         fitScore,
         recommendation,
         faceWidth,
         frameWidth,
-        difference
+        difference,
+        faceSizeCategory,
+        frameSizeCategory,
+        isCategoryMatch: faceSizeCategory === frameSizeCategory,
     }
 }
 

@@ -656,6 +656,7 @@ export async function identify(input = {}, options = {}) {
       saved_at: new Date().toISOString(),
     }
     safeStorageSet(STORAGE_KEYS.LEAD_STATE, leadState)
+    void syncLocalEventsToHub(data.contact_id, options)
     return leadState
   } catch (err) {
     // If network/backend is unreachable in static preview mode, provide offline-resilient fallback
@@ -687,11 +688,19 @@ export async function identify(input = {}, options = {}) {
  */
 export async function track(eventType, payload = {}, options = {}) {
   const leadState = getStoredLeadState()
+  const portalSess = getStoredPortalSession()
   const attr = getStoredAttribution()
-  const contactId = options.contact_id || options.contactId || leadState?.contact_id || ''
+  const contactId =
+    options.contact_id ||
+    options.contactId ||
+    leadState?.contact_id ||
+    portalSess?.contact_id ||
+    ''
+  const sessionToken = options.session_token || portalSess?.session_token || ''
 
   const eventRecord = {
     contact_id: contactId,
+    session_token: sessionToken || undefined,
     event_type: eventType,
     payload: {
       ...payload,
@@ -699,36 +708,123 @@ export async function track(eventType, payload = {}, options = {}) {
         payload.size_category ||
         (payload.frame_width_mm ? mapWidthToSizeCategory(payload.frame_width_mm) : undefined),
     },
-    src: options.src || attr.src || 'mini_app',
+    src: options.src || attr.src || 'glasses_try_on',
     host: options.host !== undefined ? options.host : attr.host || '',
     sesi: options.sesi !== undefined ? options.sesi : attr.sesi || '',
     created_at: new Date().toISOString(),
   }
 
-  // Persist in local history for immediate UI responsiveness
+  // Persist in local history for immediate UI responsiveness (deduplicating same frame_tried SKU at top)
   const localEvents = safeStorageGet(STORAGE_KEYS.LOCAL_EVENTS) || []
-  localEvents.unshift({ id: `ev-${Date.now()}`, ...eventRecord })
-  safeStorageSet(STORAGE_KEYS.LOCAL_EVENTS, localEvents.slice(0, 30))
+  const filteredLocal =
+    eventType === 'frame_tried' && eventRecord.payload?.frame_sku
+      ? localEvents.filter(
+          (e) =>
+            !(
+              e.event_type === 'frame_tried' &&
+              String(e.payload?.frame_sku || '').toUpperCase() ===
+                String(eventRecord.payload.frame_sku).toUpperCase()
+            )
+        )
+      : localEvents
 
-  if (!contactId || String(contactId).startsWith('local-')) {
+  const localEntry = {
+    id: `ev-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    synced: false,
+    ...eventRecord,
+  }
+  filteredLocal.unshift(localEntry)
+  safeStorageSet(STORAGE_KEYS.LOCAL_EVENTS, filteredLocal.slice(0, 30))
+
+  const hasValidContact = Boolean(contactId && !String(contactId).startsWith('local-'))
+  const hasValidSession = Boolean(sessionToken && !String(sessionToken).startsWith('demo-sess-'))
+
+  if (!hasValidContact && !hasValidSession) {
     return { ok: true, local_only: true, event: eventRecord }
   }
 
   const base = resolveApiBase(options)
+  const headers = { 'Content-Type': 'application/json' }
+  if (hasValidSession) {
+    headers.Authorization = `Bearer ${sessionToken}`
+  }
+
   try {
     const resp = await fetch(`${base}/api/capture/events`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(eventRecord),
     })
     if (!resp.ok) {
       return { ok: false, local_only: true, event: eventRecord }
     }
     const saved = await resp.json()
+    // Mark local event as synced
+    const currentLocal = safeStorageGet(STORAGE_KEYS.LOCAL_EVENTS) || []
+    const updatedLocal = currentLocal.map((item) =>
+      item.id === localEntry.id ? { ...item, synced: true, id: saved.id || item.id } : item
+    )
+    safeStorageSet(STORAGE_KEYS.LOCAL_EVENTS, updatedLocal)
     return { ok: true, event: saved }
   } catch {
     return { ok: true, local_only: true, event: eventRecord }
   }
+}
+
+/**
+ * Flushes any unsynced local `frame_tried` events to Customer Hub once a contact_id or session_token becomes available.
+ */
+export async function syncLocalEventsToHub(contactId, options = {}) {
+  const localEvents = safeStorageGet(STORAGE_KEYS.LOCAL_EVENTS) || []
+  const unsynced = localEvents.filter((e) => !e.synced && e.event_type === 'frame_tried')
+  if (unsynced.length === 0) return { synced: 0 }
+
+  const portalSess = getStoredPortalSession()
+  const sessionToken = options.session_token || portalSess?.session_token || ''
+  const resolvedContactId = contactId || portalSess?.contact_id || getStoredLeadState()?.contact_id || ''
+
+  const hasValidContact = Boolean(resolvedContactId && !String(resolvedContactId).startsWith('local-'))
+  const hasValidSession = Boolean(sessionToken && !String(sessionToken).startsWith('demo-sess-'))
+  if (!hasValidContact && !hasValidSession) return { synced: 0 }
+
+  const base = resolveApiBase(options)
+  const headers = { 'Content-Type': 'application/json' }
+  if (hasValidSession) {
+    headers.Authorization = `Bearer ${sessionToken}`
+  }
+
+  let syncedCount = 0
+  const updated = [...localEvents]
+
+  for (const item of unsynced) {
+    try {
+      const resp = await fetch(`${base}/api/capture/events`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          contact_id: resolvedContactId,
+          session_token: sessionToken || undefined,
+          event_type: item.event_type,
+          payload: item.payload,
+          src: item.src || 'glasses_try_on',
+          host: item.host || '',
+          sesi: item.sesi || '',
+        }),
+      })
+      if (resp.ok) {
+        syncedCount++
+        const idx = updated.findIndex((u) => u.id === item.id)
+        if (idx >= 0) {
+          updated[idx] = { ...updated[idx], synced: true, contact_id: resolvedContactId }
+        }
+      }
+    } catch {
+      // ignore network error in background sync
+    }
+  }
+
+  safeStorageSet(STORAGE_KEYS.LOCAL_EVENTS, updated)
+  return { synced: syncedCount }
 }
 
 export function getLocalTrackedEvents() {
@@ -793,6 +889,7 @@ export async function exchangeMagicLink(token, confirmFullName = '', options = {
     throw new Error(data.error || 'Gagal menukar tautan masuk. Silakan ketik MASUK ke WhatsApp DOOZ.')
   }
   setStoredPortalSession(data)
+  void syncLocalEventsToHub(data.contact_id, { ...options, session_token: data.session_token })
   return data
 }
 
@@ -815,6 +912,14 @@ export async function fetchPortalMe(sessionToken, options = {}) {
   if (!resp.ok) {
     throw new Error(data.error || 'Sesi tidak valid atau telah dicabut.')
   }
+  const currentSess = getStoredPortalSession() || {}
+  setStoredPortalSession({
+    ...currentSess,
+    session_token: tok,
+    contact_id: data.contact_id || currentSess.contact_id || '',
+    member_code: data.member_code || currentSess.member_code || '',
+    latest_measurement: data.latest_measurement || currentSess.latest_measurement || null,
+  })
   return data
 }
 
@@ -1113,6 +1218,7 @@ const DoozCaptureSDK = {
   verifyStoredAttribution,
   identify,
   track,
+  syncLocalEventsToHub,
   getStoredLeadState,
   getLocalTrackedEvents,
   inspectMagicLink,

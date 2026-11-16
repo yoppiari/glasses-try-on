@@ -230,18 +230,30 @@ func (s *Server) handleCaptureEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		ContactID   string       `json:"contact_id"`
-		EventType   string       `json:"event_type"`
-		Payload     EventPayload `json:"payload"`
-		Source      string       `json:"src"`
-		HostCode    string       `json:"host"`
-		SessionCode string       `json:"sesi"`
+		ContactID    string       `json:"contact_id"`
+		SessionToken string       `json:"session_token"`
+		EventType    string       `json:"event_type"`
+		Payload      EventPayload `json:"payload"`
+		Source       string       `json:"src"`
+		HostCode     string       `json:"host"`
+		SessionCode  string       `json:"sesi"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON payload")
 		return
 	}
-	ev, err := s.cfg.Store.RecordEvent(body.ContactID, body.EventType, body.Payload, body.Source, body.HostCode, body.SessionCode, s.cfg.Clock())
+	now := s.cfg.Clock()
+	contactID := strings.TrimSpace(body.ContactID)
+	if contactID == "" {
+		tok := extractBearerToken(r)
+		if tok == "" {
+			tok = strings.TrimSpace(body.SessionToken)
+		}
+		if tok != "" {
+			contactID = s.cfg.Store.ResolveContactIDBySessionToken(tok, now)
+		}
+	}
+	ev, err := s.cfg.Store.RecordEvent(contactID, body.EventType, body.Payload, body.Source, body.HostCode, body.SessionCode, now)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -433,6 +445,7 @@ func (s *Server) handleMagicExchange(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"session_token":         sess.SessionToken,
+		"contact_id":            contact.ID,
 		"access_scope":          sess.AccessScope,
 		"requires_name_confirm": sess.AccessScope == AccessScopeBasicRecycledPending,
 		"expires_at":            sess.ExpiresAt,

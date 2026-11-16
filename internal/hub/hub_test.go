@@ -743,3 +743,148 @@ func TestSharedCatalogAndAdminCRUD(t *testing.T) {
 		t.Fatalf("expected audit logs to include %q, got %d %s", AuditAdminCatalog, resp.StatusCode, auditBody)
 	}
 }
+
+func TestGlassesTryOnSharedCatalogAndFrameTriedSync(t *testing.T) {
+	now := time.Date(2026, 11, 16, 16, 0, 0, 0, time.UTC)
+	clock := func() time.Time { return now }
+
+	signer := NewSecuritySigner("test-hmac-secret-dooz")
+	store, err := NewStore(t.TempDir()+"/hub_tryon.json", signer)
+	if err != nil {
+		t.Fatalf("NewStore failed: %v", err)
+	}
+	fonnte := NewFonnteAdapter("mock-token", "DOOZ-WA-DEVICE-01")
+	queue := NewReplyQueue(fonnte, 5*time.Millisecond, 10*time.Millisecond)
+	defer queue.Close()
+
+	srv := NewServer(ServerConfig{
+		Store:            store,
+		Signer:           signer,
+		WAProvider:       fonnte,
+		ReplyQueue:       queue,
+		WebhookSecret:    "test-webhook-secret",
+		FonnteDeviceID:   "DOOZ-WA-DEVICE-01",
+		OfficialWANumber: "6281122334455",
+		PortalBaseURL:    "https://crm.dooz.id",
+		WebhookRateLimit: 20,
+		RateLimitWindow:  time.Minute,
+		Clock:            clock,
+	})
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	// 1. Customer tries frames in `glasses-try-on` and submits LeadCaptureModal with `sku_list`
+	resp, body := doJSONRequest(t, ts.URL+"/api/capture/identify", http.MethodPost, map[string]any{
+		"full_name":      "Budi Santoso",
+		"phone":          "081355667788",
+		"city_regency":   "Kota Surakarta (Solo)",
+		"event_type":     EventFrameMeasured,
+		"consent_crm_wa": true,
+		"src":            "live_tiktok",
+		"host":           "rina",
+		"sesi":           "20261116",
+		"payload": map[string]any{
+			"frame_width_mm": 138,
+			"size_category":  "M",
+			"frame_sku":      "DOOZ-CLS-001",
+			"frame_name":     "Classic Black",
+			"sku_list":       []string{"DOOZ-CLS-001", "DOOZ-RND-003"},
+		},
+	}, nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("identify failed: %d %s", resp.StatusCode, body)
+	}
+	var idRes IdentifyLeadResult
+	_ = json.Unmarshal([]byte(body), &idRes)
+
+	// 2. Verify via Fonnte inbound webhook so customer gets Magic Link
+	resp, body = doJSONRequest(t, ts.URL+"/api/webhooks/fonnte", http.MethodPost, map[string]any{
+		"device":  "DOOZ-WA-DEVICE-01",
+		"sender":  "6281355667788",
+		"message": "Halo DOOZ, verifikasi hasil ukur saya kode: " + idRes.VerificationCode,
+	}, map[string]string{
+		"X-Fonnte-Secret": "test-webhook-secret",
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("webhook verify failed: %d %s", resp.StatusCode, body)
+	}
+
+	if !queue.Flush(2 * time.Second) {
+		t.Fatalf("reply queue timed out")
+	}
+	sentMsgs := fonnte.SentMessages()
+	if len(sentMsgs) == 0 {
+		t.Fatalf("expected outbound magic link message after inbound verification")
+	}
+	tokenRe := regexp.MustCompile(`token=([a-f0-9]+)`)
+	m := tokenRe.FindStringSubmatch(sentMsgs[len(sentMsgs)-1].Message)
+	if len(m) < 2 {
+		t.Fatalf("expected magic link token in WA reply: %s", sentMsgs[len(sentMsgs)-1].Message)
+	}
+	magicToken := m[1]
+
+	// 3. Exchange Magic Link via POST /api/auth/magic-exchange
+	resp, body = doJSONRequest(t, ts.URL+"/api/auth/magic-exchange", http.MethodPost, map[string]any{
+		"token": magicToken,
+	}, nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("magic-exchange failed: %d %s", resp.StatusCode, body)
+	}
+	var sessData struct {
+		SessionToken string `json:"session_token"`
+		ContactID    string `json:"contact_id"`
+	}
+	_ = json.Unmarshal([]byte(body), &sessData)
+	if sessData.SessionToken == "" || sessData.ContactID == "" {
+		t.Fatalf("expected session_token and contact_id in magic-exchange response: %s", body)
+	}
+
+	// 4. Customer tries another frame (`DOOZ-AVI-002`) in `glasses-try-on` using only Bearer session_token
+	resp, body = doJSONRequest(t, ts.URL+"/api/capture/events", http.MethodPost, map[string]any{
+		"event_type": EventFrameTried,
+		"src":        "glasses_try_on",
+		"payload": map[string]any{
+			"frame_sku": "DOOZ-AVI-002",
+		},
+	}, map[string]string{
+		"Authorization": "Bearer " + sessData.SessionToken,
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("POST /api/capture/events with Bearer session failed: %d %s", resp.StatusCode, body)
+	}
+	// Verify automatic catalog enrichment (Modern Aviator, 142mm, Size L)
+	if !strings.Contains(body, `"frame_name":"Modern Aviator"`) || !strings.Contains(body, `"size_category":"L"`) {
+		t.Fatalf("expected automatic catalog enrichment for DOOZ-AVI-002, got: %s", body)
+	}
+
+	// 5. Verify Portal "Data Saya" (`GET /api/portal/me`) shows all 3 tried frames and customer size M (138mm)
+	resp, body = doJSONRequest(t, ts.URL+"/api/portal/me", http.MethodGet, nil, map[string]string{
+		"Authorization": "Bearer " + sessData.SessionToken,
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET /api/portal/me failed: %d %s", resp.StatusCode, body)
+	}
+	var portalView MemberPortalView
+	_ = json.Unmarshal([]byte(body), &portalView)
+	if portalView.LatestMeasurement == nil || portalView.LatestMeasurement.SizeCategory != "M" {
+		t.Fatalf("expected latest_measurement size_category=M in Portal Data Saya, got: %+v", portalView.LatestMeasurement)
+	}
+	if len(portalView.TriedFrames) < 3 {
+		t.Fatalf("expected at least 3 tried_frames in Portal Data Saya, got %d: %s", len(portalView.TriedFrames), body)
+	}
+
+	// 6. Verify Cashier Outlet Level 1 lookup sees the 3 tried frames and customer size M
+	resp, body = doJSONRequest(t, ts.URL+"/api/kasir/lookup-phone", http.MethodPost, map[string]any{
+		"phone": "081355667788",
+	}, map[string]string{
+		"X-Staff-User-ID":   "kasir-gading-1",
+		"X-Staff-Role":      RoleKasir,
+		"X-Staff-Outlet-ID": "outlet-solo-gading",
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("POST /api/kasir/lookup-phone failed: %d %s", resp.StatusCode, body)
+	}
+	if !strings.Contains(body, `"DOOZ-AVI-002"`) || !strings.Contains(body, `"DOOZ-CLS-001"`) || !strings.Contains(body, `"DOOZ-RND-003"`) {
+		t.Fatalf("expected Cashier Level 1 lookup to show tried frames (DOOZ-AVI-002, DOOZ-CLS-001, DOOZ-RND-003), got: %s", body)
+	}
+}

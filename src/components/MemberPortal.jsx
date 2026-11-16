@@ -5,6 +5,8 @@ import {
   getStoredPortalSession,
   setStoredPortalSession,
   clearStoredPortalSession,
+  getLocalTrackedEvents,
+  syncLocalEventsToHub,
   inspectMagicLink,
   exchangeMagicLink,
   fetchPortalMe,
@@ -196,7 +198,11 @@ function buildOfflineDemoView(recycledMode = false) {
   }
 }
 
-export default function MemberPortal({ onBackToTryOn, onSelectFrameFromHistory }) {
+export default function MemberPortal({
+  onBackToTryOn,
+  onSelectFrameFromHistory,
+  onApplyCustomerSizeFilter,
+}) {
   const [urlToken, setUrlToken] = useState(() => {
     if (typeof window === 'undefined') return ''
     const params = new URLSearchParams(window.location.search)
@@ -291,6 +297,7 @@ export default function MemberPortal({ onBackToTryOn, onSelectFrameFromHistory }
     setLoadingPortal(true)
     setErrorBanner('')
     try {
+      await syncLocalEventsToHub(stored?.contact_id, { session_token: tokenToUse })
       const view = await fetchPortalMe(tokenToUse)
       setPortalView(view)
     } catch (err) {
@@ -522,6 +529,21 @@ export default function MemberPortal({ onBackToTryOn, onSelectFrameFromHistory }
     const found = portalView?.consents?.find((c) => c.scope === 'crm_wa')
     return found ? Boolean(found.granted) : true
   }, [portalView?.consents])
+
+  const mergedTriedFrames = useMemo(() => {
+    const serverList = Array.isArray(portalView?.tried_frames) ? portalView.tried_frames : []
+    const localList = getLocalTrackedEvents().filter((e) => e.event_type === 'frame_tried')
+    const combined = [...localList, ...serverList]
+    const seen = new Set()
+    const deduped = []
+    for (const ev of combined) {
+      const skuKey = String(ev.payload?.frame_sku || ev.payload?.frame_name || ev.id).toUpperCase()
+      if (seen.has(skuKey)) continue
+      seen.add(skuKey)
+      deduped.push(ev)
+    }
+    return deduped
+  }, [portalView?.tried_frames])
 
   const waMasukUrl = `https://wa.me/${DEFAULT_OFFICIAL_WA}?text=${encodeURIComponent('MASUK')}`
   const waKeluarUrl = `https://wa.me/${DEFAULT_OFFICIAL_WA}?text=${encodeURIComponent('KELUAR')}`
@@ -876,6 +898,25 @@ export default function MemberPortal({ onBackToTryOn, onSelectFrameFromHistory }
                           )
                         })}
                       </div>
+                      {(onApplyCustomerSizeFilter || onBackToTryOn) && (
+                        <button
+                          type="button"
+                          className="dooz-btn-primary"
+                          style={{ marginTop: '10px', width: '100%' }}
+                          onClick={() => {
+                            if (onApplyCustomerSizeFilter) {
+                              onApplyCustomerSizeFilter({
+                                sizeCategory: portalView.latest_measurement?.size_category || 'M',
+                                widthMm: portalView.latest_measurement?.frame_width_mm || 138,
+                              })
+                            } else if (onBackToTryOn) {
+                              onBackToTryOn()
+                            }
+                          }}
+                        >
+                          🎯 Filter Otomatis Size {portalView.latest_measurement?.size_category || 'M'} di Virtual Try-On →
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -885,9 +926,9 @@ export default function MemberPortal({ onBackToTryOn, onSelectFrameFromHistory }
                   {/* Tried Frames History */}
                   <div className="dooz-card">
                     <h3>👓 Riwayat Frame yang Dicoba (Try-On & Outlet)</h3>
-                    {portalView.tried_frames && portalView.tried_frames.length > 0 ? (
+                    {mergedTriedFrames.length > 0 ? (
                       <ul className="portal-item-list">
-                        {portalView.tried_frames.map((ev) => (
+                        {mergedTriedFrames.map((ev) => (
                           <li key={ev.id} className="portal-item">
                             <div>
                               <strong>{ev.payload?.frame_name || ev.payload?.frame_sku || 'Frame DOOZ'}</strong>

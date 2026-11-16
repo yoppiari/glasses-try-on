@@ -1735,3 +1735,217 @@ body {
   display: flex;
   gap: 8px;
 }
+
+/* ============================================================
+   DOOZ Shared Catalog Sync & Automatic Size Filter (XS–XL)
+   ============================================================ */
+
+.catalog-sync-pill {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(34, 197, 94, 0.14);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  letter-spacing: 0.02em;
+}
+
+.catalog-sync-pill.syncing {
+  background: rgba(245, 158, 11, 0.14);
+  color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+.dooz-size-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 20px;
+  background: rgba(20, 20, 24, 0.92);
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.size-filter-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.size-filter-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.customer-size-chip {
+  font-size: 0.74rem;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(251, 146, 60, 0.16);
+  border: 1px solid rgba(251, 146, 60, 0.4);
+  color: #fdba74;
+}
+
+.customer-size-chip.muted {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.size-filter-pills {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.size-filter-pills::-webkit-scrollbar {
+  display: none;
+}
+
+.size-filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 11px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--transition-fast);
+}
+
+.size-filter-pill:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.11);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.size-filter-pill.active {
+  color: #fff;
+  background: var(--gradient-primary);
+  border-color: transparent;
+  box-shadow: var(--shadow-glow);
+}
+
+.size-filter-pill.recommended {
+  color: #fb923c;
+  background: rgba(249, 115, 22, 0.14);
+  border-color: rgba(249, 115, 22, 0.45);
+}
+
+.size-filter-pill.recommended.active {
+  color: #0a0a0a;
+  background: #fb923c;
+  border-color: #fb923c;
+  font-weight: 700;
+}
+
+.size-filter-pill.customer-match:not(.active) {
+  border-color: rgba(251, 146, 60, 0.45);
+}
+
+.pill-mm {
+  font-size: 0.65rem;
+  opacity: 0.72;
+}
+
+.pill-count {
+  font-size: 0.66rem;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.28);
+}
+
+.product-thumb {
+  position: relative;
+}
+
+.product-thumb.recommended-thumb:not(.active) {
+  border-color: rgba(251, 146, 60, 0.45);
+}
+
+.thumb-size-tag {
+  position: absolute;
+  bottom: 3px;
+  right: 4px;
+  font-size: 0.58rem;
+  font-weight: 800;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: rgba(10, 10, 10, 0.82);
+  color: #e2e8f0;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.thumb-fit-dot {
+  position: absolute;
+  top: 3px;
+  left: 4px;
+  font-size: 0.62rem;
+  color: #fb923c;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+}
+
+.product-title-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.product-sku-badge {
+  font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.product-recommended-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(249, 115, 22, 0.18);
+  color: #fb923c;
+  border: 1px solid rgba(249, 115, 22, 0.45);
+}
+
+.product-price-tag {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  background: rgba(99, 102, 241, 0.16);
+  color: #a5b4fc;
+  border-radius: var(--radius-full);
+}
+
+.product-stock-tag {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+}
+
+.product-stock-tag.in {
+  background: rgba(34, 197, 94, 0.14);
+  color: #4ade80;
+}
+
+.product-stock-tag.low {
+  background: rgba(245, 158, 11, 0.16);
+  color: #fbbf24;
+}

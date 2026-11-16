@@ -214,9 +214,7 @@ func (s *Store) UpsertLeadPending(in IdentifyLeadInput, officialWANumber string)
 
 	// Record event if valid
 	if IsValidEventType(in.EventType) {
-		if in.Payload.FrameWidthMM > 0 && strings.TrimSpace(in.Payload.SizeCategory) == "" {
-			in.Payload.SizeCategory = s.MatchSizeCategoryLocked(in.Payload.FrameWidthMM).Category
-		}
+		in.Payload = s.enrichFramePayloadLocked(in.Payload)
 		ev := ContactEvent{
 			ID:          GenerateUUID(),
 			ContactID:   contact.ID,
@@ -228,6 +226,33 @@ func (s *Store) UpsertLeadPending(in IdentifyLeadInput, officialWANumber string)
 			CreatedAt:   now,
 		}
 		s.data.Events = append(s.data.Events, ev)
+
+		// If the lead was captured with a list of tried frames (e.g., from glasses-try-on),
+		// also record each tried SKU as a `frame_tried` event so it appears in Portal Data Saya & Cashier Outlet.
+		if in.EventType == EventFrameMeasured && len(in.Payload.SKUList) > 0 {
+			seenSKUs := make(map[string]bool)
+			for idx, rawSKU := range in.Payload.SKUList {
+				skuClean := strings.TrimSpace(rawSKU)
+				if skuClean == "" || seenSKUs[strings.ToUpper(skuClean)] {
+					continue
+				}
+				seenSKUs[strings.ToUpper(skuClean)] = true
+				triedPayload := s.enrichFramePayloadLocked(EventPayload{
+					FrameSKU: skuClean,
+					OutletID: in.Payload.OutletID,
+				})
+				s.data.Events = append(s.data.Events, ContactEvent{
+					ID:          GenerateUUID(),
+					ContactID:   contact.ID,
+					EventType:   EventFrameTried,
+					Payload:     triedPayload,
+					Source:      strings.TrimSpace(in.Source),
+					HostCode:    strings.TrimSpace(in.HostCode),
+					SessionCode: strings.TrimSpace(in.SessionCode),
+					CreatedAt:   now.Add(time.Duration(idx) * time.Millisecond),
+				})
+			}
+		}
 	}
 
 	if in.GrantCRMWAConsent {
@@ -298,6 +323,68 @@ func (s *Store) upsertConsentLocked(contactID, scope string, granted bool, ip, u
 	})
 }
 
+func (s *Store) findCatalogFrameLocked(skuOrID string) *CatalogFrame {
+	key := strings.TrimSpace(skuOrID)
+	if key == "" {
+		return nil
+	}
+	if f, ok := s.data.CatalogFrames[strings.ToUpper(key)]; ok {
+		return f
+	}
+	for _, f := range s.data.CatalogFrames {
+		if strings.EqualFold(f.SKU, key) || strings.EqualFold(f.ID, key) {
+			return f
+		}
+	}
+	return nil
+}
+
+func (s *Store) enrichFramePayloadLocked(p EventPayload) EventPayload {
+	if strings.TrimSpace(p.FrameSKU) != "" {
+		if cf := s.findCatalogFrameLocked(p.FrameSKU); cf != nil {
+			p.FrameSKU = cf.SKU
+			if strings.TrimSpace(p.FrameName) == "" {
+				p.FrameName = cf.Name
+			}
+			if p.FrameWidthMM <= 0 {
+				p.FrameWidthMM = cf.FrameWidthMM
+			}
+			if p.BridgeMM <= 0 {
+				p.BridgeMM = cf.BridgeMM
+			}
+			if p.TempleMM <= 0 {
+				p.TempleMM = cf.TempleMM
+			}
+			if strings.TrimSpace(p.SizeCategory) == "" {
+				p.SizeCategory = cf.SizeCategory
+			}
+		}
+	}
+	if p.FrameWidthMM > 0 && strings.TrimSpace(p.SizeCategory) == "" {
+		p.SizeCategory = s.MatchSizeCategoryLocked(p.FrameWidthMM).Category
+	}
+	return p
+}
+
+// ResolveContactIDBySessionToken resolves the ContactID from an active MemberSession token.
+func (s *Store) ResolveContactIDBySessionToken(sessionToken string, now time.Time) string {
+	tok := strings.TrimSpace(sessionToken)
+	if tok == "" {
+		return ""
+	}
+	if now.IsZero() {
+		now = time.Now().UTC()
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	sess, ok := s.data.MemberSessions[tok]
+	if !ok || sess == nil || sess.RevokedAt != nil || now.After(sess.ExpiresAt) {
+		return ""
+	}
+	return sess.ContactID
+}
+
 // RecordEvent adds an omnichannel event for an existing contact.
 func (s *Store) RecordEvent(contactID, eventType string, payload EventPayload, src, host, sesi string, now time.Time) (*ContactEvent, error) {
 	if !IsValidEventType(eventType) {
@@ -316,9 +403,7 @@ func (s *Store) RecordEvent(contactID, eventType string, payload EventPayload, s
 	c.LastActiveAt = now
 	c.UpdatedAt = now
 
-	if payload.FrameWidthMM > 0 && strings.TrimSpace(payload.SizeCategory) == "" {
-		payload.SizeCategory = s.MatchSizeCategoryLocked(payload.FrameWidthMM).Category
-	}
+	payload = s.enrichFramePayloadLocked(payload)
 
 	ev := ContactEvent{
 		ID:          GenerateUUID(),
@@ -700,6 +785,7 @@ func (s *Store) revokeContactSessionsLocked(contactID string, now time.Time) int
 }
 
 type MemberPortalView struct {
+	ContactID           string         `json:"contact_id,omitempty"`
 	AccessScope         string         `json:"access_scope"`
 	RequiresNameConfirm bool           `json:"requires_name_confirm"`
 	MemberCode          string         `json:"member_code"`
@@ -749,6 +835,7 @@ func (s *Store) GetPortalViewBySession(sessionToken string, now time.Time) (*Mem
 	}
 
 	if sess.AccessScope == AccessScopeFull {
+		view.ContactID = contact.ID
 		view.FullName = contact.FullName
 		view.CityRegency = contact.CityRegency
 		view.TriedFrames = s.filterEventsLocked(contact.ID, EventFrameTried, 0)
@@ -771,6 +858,16 @@ func (s *Store) latestMeasurementPayloadLocked(contactID string) *EventPayload {
 		if ev.ContactID == contactID && ev.EventType == EventFrameMeasured {
 			if latest == nil || ev.CreatedAt.After(latest.CreatedAt) {
 				latest = ev
+			}
+		}
+	}
+	if latest == nil {
+		for i := range s.data.Events {
+			ev := &s.data.Events[i]
+			if ev.ContactID == contactID && ev.EventType == EventFrameTried && (ev.Payload.FrameWidthMM > 0 || ev.Payload.SizeCategory != "") {
+				if latest == nil || ev.CreatedAt.After(latest.CreatedAt) {
+					latest = ev
+				}
 			}
 		}
 	}
