@@ -9,6 +9,9 @@ import { PATHS, navigate, useRoute } from './lib/routes'
 const SIZE_CATEGORIES = ['XS', 'S', 'M', 'L', 'XL']
 const STAFF_ROUTES = ['kasir', 'laporan', 'katalog']
 
+// Tahap 1 DOOZ CRM: aplikasi staf pindah ke DOOZ CRM (wajib login). Kode staf lama di repo ini dibersihkan di tahap 3.
+const CRM_URL = String(import.meta.env.VITE_CRM_URL ?? 'https://dooz-crm-pocco.fural.space').replace(/\/+$/, '')
+
 /**
  * Aplikasi customer (Coba Kacamata + Kartu Member Saya) dan aplikasi staf (/staf) dipisah:
  * customer tidak pernah melihat menu internal.
@@ -49,6 +52,12 @@ export default function App() {
         })
     }, [])
 
+    if (CRM_URL && (route === 'live' || STAFF_ROUTES.includes(route))) {
+        if (typeof window !== 'undefined') {
+            window.location.replace(`${CRM_URL}${window.location.pathname.replace(/^\/try-on/, '')}${window.location.search}`)
+        }
+        return null
+    }
     if (route === 'live') return <ObsLiveCounter />
     if (STAFF_ROUTES.includes(route)) return <StaffApp route={route} />
     if (route === 'kartu') {

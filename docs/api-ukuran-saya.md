@@ -1,5 +1,11 @@
 # Kontrak API "Ukuran Saya" — Customer Hub DOOZ
 
+> **DIPINDAH ke DOOZ CRM (16 Nov 2026, tahap 1).** Server data member & aplikasi staf sekarang ada di repo
+> [`yoppiari/dooz-crm`](https://github.com/yoppiari/dooz-crm) — base URL `https://dooz-crm-pocco.fural.space`.
+> Kontrak terbaru: `docs/api.md` dan `docs/api-ukuran-saya.md` di repo dooz-crm. Dokumen ini disimpan sebagai arsip;
+> selama transisi `https://glasses-try-on-pocco.fural.space/api/...` mem-proxy API member ke CRM dan `/staf/*`
+> dialihkan ke CRM. Pembersihan kode hub dari repo ini: tahap 3.
+
 Kontrak untuk **App Ukur** (`ukur-frame-dooz`, task #KKQBD) dan klien member lain.
 Spesifikasi produk: Knowledge *"Flow App Ukur: Simpan Ukuran & Member Kacamata DOOZ"* (bagian "Data di CRM").
 Implementasi: `internal/hub/measurements.go`, `internal/hub/measurements_http.go`, skema `migrations/003_member_measurements.sql`.

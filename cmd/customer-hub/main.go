@@ -22,6 +22,7 @@ func main() {
 	portalURL := envOrDefault("DOOZ_PORTAL_URL", "https://crm.dooz.id")
 	staticDir := envOrDefault("HUB_STATIC_DIR", "")
 	ukurAppURL := envOrDefault("UKUR_APP_URL", hub.DefaultUkurAppURL)
+	crmURL := envOrDefault("CRM_URL", "") // mis. https://dooz-crm-pocco.fural.space (tahap 1 DOOZ CRM)
 
 	flag.StringVar(&port, "port", port, "HTTP listen port")
 	flag.StringVar(&dbPath, "db", dbPath, "Path to persistent JSON/SQLite-compatible store")
@@ -49,12 +50,13 @@ func main() {
 		PortalBaseURL:    portalURL,
 		UkurAppURL:       ukurAppURL,
 		StaticDir:        staticDir,
+		CRMURL:           crmURL,
 		WebhookRateLimit: 30,
 		RateLimitWindow:  time.Minute,
 	})
 
 	addr := fmt.Sprintf("0.0.0.0:%s", port)
-	log.Printf("[DOOZ Customer Hub] listening on %s (db=%s, device=%s, static=%q)", addr, dbPath, deviceID, staticDir)
+	log.Printf("[DOOZ Customer Hub] listening on %s (db=%s, device=%s, static=%q, crm=%q)", addr, dbPath, deviceID, staticDir, crmURL)
 	if err := http.ListenAndServe(addr, srv.Handler()); err != nil {
 		log.Fatalf("server exited: %v", err)
 	}

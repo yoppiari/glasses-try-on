@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -21,7 +23,10 @@ type ServerConfig struct {
 	PortalBaseURL    string
 	UkurAppURL       string // App Ukur (ukur-frame-dooz): tujuan magic link "Masuk lewat WhatsApp"
 	StaticDir        string // folder hasil build web (dist/); kosong = hanya API + halaman pengganti
-	WebhookRateLimit int    // max requests per window per sender/IP
+	// CRMURL (env CRM_URL, mis. https://dooz-crm-pocco.fural.space): bila diisi, aplikasi & API staf dialihkan
+	// ke DOOZ CRM dan API member di-proxy ke CRM (lihat crm_forward.go).
+	CRMURL           string
+	WebhookRateLimit int // max requests per window per sender/IP
 	RateLimitWindow  time.Duration
 	Clock            func() time.Time
 }
@@ -34,6 +39,8 @@ type Server struct {
 	mux        *http.ServeMux
 	rateMu     sync.Mutex
 	rateCounts map[string]*rateBucket
+	crmURL     *url.URL
+	crmProxy   *httputil.ReverseProxy
 }
 
 type rateBucket struct {
@@ -84,12 +91,22 @@ func NewServer(cfg ServerConfig) *Server {
 		mux:        http.NewServeMux(),
 		rateCounts: make(map[string]*rateBucket),
 	}
+	if raw := strings.TrimSpace(cfg.CRMURL); raw != "" {
+		if u, err := url.Parse(raw); err == nil && u.Scheme != "" && u.Host != "" {
+			s.crmURL = &url.URL{Scheme: u.Scheme, Host: u.Host}
+			s.crmProxy = newCRMProxy(s.crmURL)
+		}
+	}
 	s.registerRoutes()
 	return s
 }
 
 func (s *Server) Handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Tahap 1 DOOZ CRM: staf → redirect, API member → proxy (CORS diatur CRM).
+		if s.crmForward(w, r) {
+			return
+		}
 		// Autentikasi member memakai Bearer token (bukan cookie), jadi wildcard origin aman dan
 		// mengizinkan App Ukur (https://ukur-frame-dooz-pocco.fural.space) memanggil API lintas origin.
 		w.Header().Set("Access-Control-Allow-Origin", "*")
