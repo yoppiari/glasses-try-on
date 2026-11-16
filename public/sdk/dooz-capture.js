@@ -14,6 +14,14 @@
 
   var DEFAULT_OFFICIAL_WA = '6281122334455'
 
+  var SIZE_CHART_DEFAULT = [
+    { category: 'XS', label: 'Extra Small (XS)', name_id: 'Sangat kecil', min_mm: 115, max_mm: 127, bridge_mm_rec: '15–17 mm', temple_mm_rec: '135–138 mm', description: 'Wajah mungil / remaja', sort_order: 1 },
+    { category: 'S', label: 'Small (S)', name_id: 'Kecil', min_mm: 128, max_mm: 133, bridge_mm_rec: '16–18 mm', temple_mm_rec: '138–140 mm', description: 'Wajah ramping', sort_order: 2 },
+    { category: 'M', label: 'Medium (M)', name_id: 'Sedang', min_mm: 134, max_mm: 139, bridge_mm_rec: '17–19 mm', temple_mm_rec: '140–145 mm', description: 'Ukuran standar mayoritas dewasa', sort_order: 3 },
+    { category: 'L', label: 'Large (L)', name_id: 'Besar', min_mm: 140, max_mm: 145, bridge_mm_rec: '18–20 mm', temple_mm_rec: '143–148 mm', description: 'Wajah lebar', sort_order: 4 },
+    { category: 'XL', label: 'Extra Large (XL)', name_id: 'Sangat besar', min_mm: 146, max_mm: 165, bridge_mm_rec: '19–22 mm', temple_mm_rec: '145–152 mm', description: 'Wajah ekstra lebar', sort_order: 5 },
+  ]
+
   var INDONESIA_CITIES = [
     'Kota Surakarta (Solo)',
     'Kab. Sukoharjo',
@@ -223,6 +231,34 @@
     })
   }
 
+  function fetchSizeChart(options) {
+    options = options || {}
+    var base = (options.apiBase || global.DOOZ_HUB_API_BASE || '').replace(/\/+$/, '')
+    return fetch(base + '/api/catalog/size-chart')
+      .then(function (r) {
+        if (!r.ok) throw new Error('Failed to load size chart')
+        return r.json()
+      })
+      .catch(function () {
+        return { ok: true, size_chart: SIZE_CHART_DEFAULT }
+      })
+  }
+
+  function fetchCatalogFrames(filters, options) {
+    filters = filters || {}
+    options = options || {}
+    var base = (options.apiBase || global.DOOZ_HUB_API_BASE || '').replace(/\/+$/, '')
+    var qs = new URLSearchParams()
+    if (filters.size) qs.set('size', filters.size)
+    if (filters.face_shape) qs.set('face_shape', filters.face_shape)
+    if (filters.stock) qs.set('stock', filters.stock)
+    if (filters.q) qs.set('q', filters.q)
+    var suffix = qs.toString() ? '?' + qs.toString() : ''
+    return fetch(base + '/api/catalog/frames' + suffix).then(function (r) {
+      return r.json()
+    })
+  }
+
   global.DoozCaptureSDK = {
     normalizePhone: normalizePhone,
     maskPhoneDisplay: maskPhoneDisplay,
@@ -232,6 +268,9 @@
     getStoredAttribution: getStoredAttribution,
     identify: identify,
     track: track,
+    fetchSizeChart: fetchSizeChart,
+    fetchCatalogFrames: fetchCatalogFrames,
     INDONESIA_CITIES: INDONESIA_CITIES,
+    SIZE_CHART_DEFAULT: SIZE_CHART_DEFAULT,
   }
 })(typeof window !== 'undefined' ? window : this)

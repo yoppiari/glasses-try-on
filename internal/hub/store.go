@@ -21,6 +21,8 @@ type storeSnapshot struct {
 	MemberSessions    map[string]*MemberSession    `json:"member_sessions"`
 	AttributionLinks  []AttributionLink            `json:"attribution_links"`
 	AuditLogs         []AuditLog                   `json:"audit_logs"`
+	SizeChart         []SizeChartEntry             `json:"size_chart"`
+	CatalogFrames     map[string]*CatalogFrame     `json:"catalog_frames"`
 }
 
 type Store struct {
@@ -46,6 +48,8 @@ func NewStore(filePath string, signer *SecuritySigner) (*Store, error) {
 			MemberSessions:    make(map[string]*MemberSession),
 			AttributionLinks:  make([]AttributionLink, 0),
 			AuditLogs:         make([]AuditLog, 0),
+			SizeChart:         DefaultSizeChart(time.Now().UTC()),
+			CatalogFrames:     DefaultCatalogFramesMap(time.Now().UTC()),
 		},
 	}
 	if s.filePath != "" && s.filePath != ":memory:" {
@@ -53,6 +57,7 @@ func NewStore(filePath string, signer *SecuritySigner) (*Store, error) {
 			return nil, err
 		}
 	}
+	s.ensureCatalogSeededLocked(time.Now().UTC())
 	return s, nil
 }
 
@@ -80,7 +85,11 @@ func (s *Store) loadFromDisk() error {
 	if snap.MemberSessions == nil {
 		snap.MemberSessions = make(map[string]*MemberSession)
 	}
+	if snap.CatalogFrames == nil {
+		snap.CatalogFrames = make(map[string]*CatalogFrame)
+	}
 	s.data = snap
+	s.ensureCatalogSeededLocked(time.Now().UTC())
 	return nil
 }
 
@@ -205,6 +214,9 @@ func (s *Store) UpsertLeadPending(in IdentifyLeadInput, officialWANumber string)
 
 	// Record event if valid
 	if IsValidEventType(in.EventType) {
+		if in.Payload.FrameWidthMM > 0 && strings.TrimSpace(in.Payload.SizeCategory) == "" {
+			in.Payload.SizeCategory = s.MatchSizeCategoryLocked(in.Payload.FrameWidthMM).Category
+		}
 		ev := ContactEvent{
 			ID:          GenerateUUID(),
 			ContactID:   contact.ID,
@@ -303,6 +315,10 @@ func (s *Store) RecordEvent(contactID, eventType string, payload EventPayload, s
 	}
 	c.LastActiveAt = now
 	c.UpdatedAt = now
+
+	if payload.FrameWidthMM > 0 && strings.TrimSpace(payload.SizeCategory) == "" {
+		payload.SizeCategory = s.MatchSizeCategoryLocked(payload.FrameWidthMM).Category
+	}
 
 	ev := ContactEvent{
 		ID:          GenerateUUID(),

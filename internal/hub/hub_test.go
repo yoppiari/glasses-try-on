@@ -542,3 +542,204 @@ func TestCaptureSDKAndPortalWebEndpoints(t *testing.T) {
 		t.Fatalf("expected privacy delete to succeed, got %d %s", resp.StatusCode, body)
 	}
 }
+
+func TestSharedCatalogAndAdminCRUD(t *testing.T) {
+	storePath := t.TempDir() + "/catalog_store.json"
+	signer := NewSecuritySigner("catalog-hmac-test")
+	store, err := NewStore(storePath, signer)
+	if err != nil {
+		t.Fatalf("NewStore failed: %v", err)
+	}
+	srv := NewServer(ServerConfig{
+		Store:  store,
+		Signer: signer,
+	})
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	// 1. GET /api/catalog/size-chart (with Cache-Control, ETag, and 304 Not Modified)
+	resp, body := doJSONRequest(t, ts.URL+"/api/catalog/size-chart?width_mm=138", http.MethodGet, nil, nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET /api/catalog/size-chart failed: %d %s", resp.StatusCode, body)
+	}
+	etag := resp.Header.Get("ETag")
+	if etag == "" || !strings.Contains(resp.Header.Get("Cache-Control"), "max-age=") {
+		t.Fatalf("expected ETag and Cache-Control headers on size-chart, got ETag=%q CC=%q", etag, resp.Header.Get("Cache-Control"))
+	}
+	var scResp struct {
+		OK              bool             `json:"ok"`
+		SizeChart       []SizeChartEntry `json:"size_chart"`
+		MatchedCategory SizeChartEntry   `json:"matched_category"`
+	}
+	if err := json.Unmarshal([]byte(body), &scResp); err != nil {
+		t.Fatalf("unmarshal size-chart response failed: %v", err)
+	}
+	if len(scResp.SizeChart) != 5 || scResp.MatchedCategory.Category != "M" {
+		t.Fatalf("expected 5 size categories and width_mm=138 -> M, got %+v", scResp)
+	}
+
+	// Conditional GET with If-None-Match -> 304 Not Modified
+	resp304, _ := doJSONRequest(t, ts.URL+"/api/catalog/size-chart?width_mm=138", http.MethodGet, nil, map[string]string{
+		"If-None-Match": etag,
+	})
+	if resp304.StatusCode != http.StatusNotModified {
+		t.Fatalf("expected 304 Not Modified for matching ETag, got %d", resp304.StatusCode)
+	}
+
+	// 2. GET /api/catalog/frames & query filters (?size=, ?face_shape=, ?stock=, ?q=)
+	resp, body = doJSONRequest(t, ts.URL+"/api/catalog/frames", http.MethodGet, nil, nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET /api/catalog/frames failed: %d %s", resp.StatusCode, body)
+	}
+	framesETag := resp.Header.Get("ETag")
+	var frResp struct {
+		OK     bool           `json:"ok"`
+		Total  int            `json:"total"`
+		Frames []CatalogFrame `json:"frames"`
+	}
+	_ = json.Unmarshal([]byte(body), &frResp)
+	if frResp.Total < 5 {
+		t.Fatalf("expected at least 5 seeded DOOZ frames, got %d", frResp.Total)
+	}
+
+	// Conditional GET on frames -> 304
+	respFrames304, _ := doJSONRequest(t, ts.URL+"/api/catalog/frames", http.MethodGet, nil, map[string]string{
+		"If-None-Match": framesETag,
+	})
+	if respFrames304.StatusCode != http.StatusNotModified {
+		t.Fatalf("expected 304 Not Modified on /api/catalog/frames, got %d", respFrames304.StatusCode)
+	}
+
+	// Filter by ?size=M
+	resp, body = doJSONRequest(t, ts.URL+"/api/catalog/frames?size=M", http.MethodGet, nil, nil)
+	_ = json.Unmarshal([]byte(body), &frResp)
+	if frResp.Total != 1 || frResp.Frames[0].SKU != "DOOZ-CLS-001" {
+		t.Fatalf("expected ?size=M to return DOOZ-CLS-001, got %+v", frResp.Frames)
+	}
+
+	// Filter by ?face_shape=heart&stock=in_stock&q=Aviator
+	resp, body = doJSONRequest(t, ts.URL+"/api/catalog/frames?face_shape=heart&stock=in_stock&q=Aviator", http.MethodGet, nil, nil)
+	_ = json.Unmarshal([]byte(body), &frResp)
+	if frResp.Total != 1 || frResp.Frames[0].SKU != "DOOZ-AVI-002" {
+		t.Fatalf("expected filter ?face_shape=heart&stock=in_stock&q=Aviator to return DOOZ-AVI-002, got %+v", frResp.Frames)
+	}
+
+	// Single SKU lookup: GET /api/catalog/frames/DOOZ-RND-003
+	resp, body = doJSONRequest(t, ts.URL+"/api/catalog/frames/DOOZ-RND-003", http.MethodGet, nil, nil)
+	if resp.StatusCode != http.StatusOK || !strings.Contains(body, `"Retro Round"`) {
+		t.Fatalf("GET /api/catalog/frames/DOOZ-RND-003 failed: %d %s", resp.StatusCode, body)
+	}
+
+	// 3. RBAC enforcement on Admin Catalog endpoints (Kasir must be rejected with 403)
+	kasirHeaders := map[string]string{
+		"X-Staff-User-ID": "kasir-1",
+		"X-Staff-Role":    RoleKasir,
+	}
+	resp, _ = doJSONRequest(t, ts.URL+"/api/admin/catalog/frames", http.MethodPost, map[string]any{
+		"sku":            "DOOZ-HACK-999",
+		"name":           "Unauthorized Frame",
+		"frame_width_mm": 135,
+	}, kasirHeaders)
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("expected 403 when kasir creates catalog frame, got %d", resp.StatusCode)
+	}
+
+	// 4. Admin CRUD: Create, Update, Update Size Chart, Bulk Import, Delete
+	adminHeaders := map[string]string{
+		"X-Staff-User-ID":   "admin-dooz",
+		"X-Staff-Role":      RoleAdmin,
+		"X-Staff-Outlet-ID": "hq-solo",
+	}
+
+	// Create new frame SKU (auto-derives size_category from frame_width_mm=131 -> S)
+	resp, body = doJSONRequest(t, ts.URL+"/api/admin/catalog/frames", http.MethodPost, map[string]any{
+		"sku":             "DOOZ-CAT-006",
+		"name":            "Cat-Eye Rose Gold",
+		"frame_width_mm":  131,
+		"bridge_mm":       17,
+		"temple_mm":       140,
+		"frame_style":     "cat-eye",
+		"face_shapes":     []string{"oval", "heart"},
+		"color":           "Rose Gold",
+		"material":        "Titanium",
+		"price_idr":       429000,
+		"thumbnail_url":   "/images/2.png",
+		"tryon_asset_url": "/images/2.png",
+		"stock_status":    StockInStock,
+	}, adminHeaders)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("POST /api/admin/catalog/frames expected 201, got %d %s", resp.StatusCode, body)
+	}
+	if !strings.Contains(body, `"size_category":"S"`) {
+		t.Fatalf("expected auto-derived size_category S for 131mm, got %s", body)
+	}
+
+	// Update frame via PUT /api/admin/catalog/frames/DOOZ-CAT-006
+	resp, body = doJSONRequest(t, ts.URL+"/api/admin/catalog/frames/DOOZ-CAT-006", http.MethodPut, map[string]any{
+		"name":           "Cat-Eye Rose Gold Limited",
+		"frame_width_mm": 136,
+		"stock_status":   StockLowStock,
+	}, adminHeaders)
+	if resp.StatusCode != http.StatusOK || !strings.Contains(body, `"size_category":"M"`) || !strings.Contains(body, `"low_stock"`) {
+		t.Fatalf("PUT /api/admin/catalog/frames/DOOZ-CAT-006 failed: %d %s", resp.StatusCode, body)
+	}
+
+	// Update Size Chart via PUT /api/admin/catalog/size-chart
+	customChart := DefaultSizeChart(time.Now().UTC())
+	customChart[0].MaxMM = 126 // XS: 115-126
+	customChart[1].MinMM = 127 // S: 127-133
+	resp, body = doJSONRequest(t, ts.URL+"/api/admin/catalog/size-chart", http.MethodPut, map[string]any{
+		"size_chart":         customChart,
+		"recalculate_frames": true,
+	}, adminHeaders)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("PUT /api/admin/catalog/size-chart failed: %d %s", resp.StatusCode, body)
+	}
+
+	// Reject invalid overlapping size chart
+	badChart := DefaultSizeChart(time.Now().UTC())
+	badChart[1].MinMM = 120 // overlaps with XS (115-127)
+	resp, _ = doJSONRequest(t, ts.URL+"/api/admin/catalog/size-chart", http.MethodPut, badChart, adminHeaders)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400 for overlapping size chart, got %d", resp.StatusCode)
+	}
+
+	// Bulk Import via POST /api/admin/catalog/import
+	resp, body = doJSONRequest(t, ts.URL+"/api/admin/catalog/import", http.MethodPost, map[string]any{
+		"frames": []map[string]any{
+			{
+				"sku":            "DOOZ-GEO-007",
+				"name":           "Geometric Hex",
+				"frame_width_mm": 141,
+				"stock_status":   StockInStock,
+			},
+		},
+	}, adminHeaders)
+	if resp.StatusCode != http.StatusOK || !strings.Contains(body, `"imported_frames":1`) {
+		t.Fatalf("POST /api/admin/catalog/import failed: %d %s", resp.StatusCode, body)
+	}
+
+	// Delete frame via DELETE /api/admin/catalog/frames/DOOZ-CAT-006
+	resp, body = doJSONRequest(t, ts.URL+"/api/admin/catalog/frames/DOOZ-CAT-006", http.MethodDelete, nil, adminHeaders)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("DELETE /api/admin/catalog/frames/DOOZ-CAT-006 failed: %d %s", resp.StatusCode, body)
+	}
+
+	// Verify persistence by reloading Store from disk
+	reloadedStore, err := NewStore(storePath, signer)
+	if err != nil {
+		t.Fatalf("reload store failed: %v", err)
+	}
+	if _, err := reloadedStore.GetCatalogFrameBySKU("DOOZ-GEO-007"); err != nil {
+		t.Fatalf("expected DOOZ-GEO-007 to persist on disk, got err: %v", err)
+	}
+	if _, err := reloadedStore.GetCatalogFrameBySKU("DOOZ-CAT-006"); err == nil {
+		t.Fatalf("expected deleted DOOZ-CAT-006 not to exist after reload")
+	}
+
+	// Verify Audit Logs recorded admin_catalog actions
+	resp, auditBody := doJSONRequest(t, ts.URL+"/api/admin/audit-logs", http.MethodGet, nil, adminHeaders)
+	if resp.StatusCode != http.StatusOK || !strings.Contains(auditBody, AuditAdminCatalog) {
+		t.Fatalf("expected audit logs to include %q, got %d %s", AuditAdminCatalog, resp.StatusCode, auditBody)
+	}
+}

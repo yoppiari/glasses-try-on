@@ -36,6 +36,7 @@ const (
 	AuditLevel1Lookup    = "level_1_lookup"
 	AuditLevel2QR        = "level_2_qr"
 	AuditAdminExport     = "admin_export"
+	AuditAdminCatalog    = "admin_catalog"
 	AuditSystemRetention = "system_retention"
 
 	VerificationCodeTTL  = 30 * time.Minute
@@ -57,6 +58,9 @@ var (
 	ErrInvalidSignature         = errors.New("invalid HMAC signature")
 	ErrQRTokenExpired           = errors.New("member QR rotating token expired")
 	ErrOutboundNotTriggered     = errors.New("outbound WhatsApp blocked: number has not triggered inbound webhook")
+	ErrFrameNotFound            = errors.New("catalog frame SKU not found")
+	ErrInvalidSizeChart         = errors.New("invalid size chart: must define valid ordered XS, S, M, L, XL millimeter ranges")
+	ErrInvalidCatalogFrame      = errors.New("invalid catalog frame: sku, name, and frame_width_mm (>0) are required")
 )
 
 type Contact struct {

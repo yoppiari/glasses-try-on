@@ -101,7 +101,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     outlet_id VARCHAR(64) NOT NULL DEFAULT '',
     target_contact_id VARCHAR(64) NOT NULL DEFAULT '',
     action VARCHAR(64) NOT NULL,
-    access_level VARCHAR(32) NOT NULL CHECK (access_level IN ('level_1_lookup', 'level_2_qr', 'admin_export', 'system_retention')),
+    access_level VARCHAR(32) NOT NULL CHECK (access_level IN ('level_1_lookup', 'level_2_qr', 'admin_export', 'admin_catalog', 'system_retention')),
     details TEXT NOT NULL DEFAULT '',
     timestamp TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

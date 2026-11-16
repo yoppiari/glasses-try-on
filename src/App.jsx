@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import TryOnCanvas from './components/TryOnCanvas'
 import LeadCaptureModal from './components/LeadCaptureModal'
 import MemberPortal from './components/MemberPortal'
+import CatalogAdminPanel from './components/CatalogAdminPanel'
 import { getFitColor, getFitEmoji } from './utils/fitCalculator'
 import {
     captureAttributionFromURL,
@@ -111,6 +112,13 @@ function detectInitialView() {
     if (typeof window === 'undefined') return 'tryon'
     const path = window.location.pathname || ''
     const params = new URLSearchParams(window.location.search)
+    if (
+        path.endsWith('/admin/catalog') ||
+        path.endsWith('/admin/catalog/') ||
+        params.get('view') === 'catalog-admin'
+    ) {
+        return 'catalog-admin'
+    }
     if (
         path.endsWith('/data-saya') ||
         path.endsWith('/data-saya/') ||
@@ -228,10 +236,19 @@ export default function App() {
                     >
                         👤 Data Saya
                     </button>
+                    <button
+                        type="button"
+                        className={`header-nav-btn ${activeView === 'catalog-admin' ? 'active' : ''}`}
+                        onClick={() => setActiveView('catalog-admin')}
+                    >
+                        🗂️ Katalog SSOT
+                    </button>
                 </nav>
             </header>
 
-            {activeView === 'portal' ? (
+            {activeView === 'catalog-admin' ? (
+                <CatalogAdminPanel onBack={() => setActiveView('tryon')} />
+            ) : activeView === 'portal' ? (
                 <MemberPortal
                     onBackToTryOn={() => setActiveView('tryon')}
                     onSelectFrameFromHistory={handleSelectFrameFromHistory}

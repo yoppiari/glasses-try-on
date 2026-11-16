@@ -84,7 +84,8 @@ func (s *Server) Handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Fonnte-Secret, X-Staff-User-ID, X-Staff-Role, X-Staff-Outlet-ID")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, If-None-Match, X-Fonnte-Secret, X-Staff-User-ID, X-Staff-Role, X-Staff-Outlet-ID")
+		w.Header().Set("Access-Control-Expose-Headers", "ETag, Cache-Control")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return
@@ -130,6 +131,19 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/admin/audit-logs", s.handleAdminAuditLogs)
 	s.mux.HandleFunc("/api/admin/contacts/export.csv", s.handleAdminExportCSV)
 	s.mux.HandleFunc("/api/admin/retention/purge", s.handleAdminRetentionPurge)
+
+	// Shared Catalog (Single Source of Truth: XS-XL Size Chart & Active DOOZ Frame SKUs)
+	s.mux.HandleFunc("/api/catalog/size-chart", s.handleCatalogSizeChart)
+	s.mux.HandleFunc("/api/catalog/frames", s.handleCatalogFrames)
+	s.mux.HandleFunc("/api/catalog/frames/", s.handleCatalogFrames)
+
+	// Admin Catalog CRUD & Import
+	s.mux.HandleFunc("/api/admin/catalog/size-chart", s.handleAdminCatalogSizeChart)
+	s.mux.HandleFunc("/api/admin/catalog/frames", s.handleAdminCatalogFrames)
+	s.mux.HandleFunc("/api/admin/catalog/frames/", s.handleAdminCatalogFrameBySKU)
+	s.mux.HandleFunc("/api/admin/catalog/import", s.handleAdminCatalogImport)
+	s.mux.HandleFunc("/admin/catalog", s.handleAdminCatalogWebPage)
+	s.mux.HandleFunc("/admin/catalog/", s.handleAdminCatalogWebPage)
 }
 
 func (s *Server) allowRate(key string) bool {
@@ -762,9 +776,9 @@ func writeStaffError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, ErrUnauthorizedRole):
 		writeError(w, http.StatusForbidden, err.Error())
-	case errors.Is(err, ErrContactNotFound):
+	case errors.Is(err, ErrContactNotFound), errors.Is(err, ErrFrameNotFound):
 		writeError(w, http.StatusNotFound, err.Error())
-	case errors.Is(err, ErrInvalidSignature), errors.Is(err, ErrQRTokenExpired):
+	case errors.Is(err, ErrInvalidSignature), errors.Is(err, ErrQRTokenExpired), errors.Is(err, ErrInvalidSizeChart), errors.Is(err, ErrInvalidCatalogFrame):
 		writeError(w, http.StatusBadRequest, err.Error())
 	default:
 		writeError(w, http.StatusBadRequest, err.Error())

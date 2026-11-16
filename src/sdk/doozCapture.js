@@ -13,16 +13,177 @@ const STORAGE_KEYS = {
   LEAD_STATE: 'dooz_lead_state_v1',
   PORTAL_SESSION: 'dooz_member_session_v1',
   LOCAL_EVENTS: 'dooz_local_events_v1',
+  SIZE_CHART_CACHE: 'dooz_size_chart_cache_v1',
+  FRAMES_CACHE: 'dooz_frames_cache_v1',
 }
 
 export const DEFAULT_OFFICIAL_WA = '6281122334455'
 
 export const SIZE_CHART_DEFAULT = [
-  { category: 'XS', label: 'Extra Small (XS)', min_mm: 115, max_mm: 127, description: 'Wajah mungil / remaja' },
-  { category: 'S', label: 'Small (S)', min_mm: 128, max_mm: 133, description: 'Wajah ramping' },
-  { category: 'M', label: 'Medium (M)', min_mm: 134, max_mm: 139, description: 'Ukuran standar mayoritas dewasa' },
-  { category: 'L', label: 'Large (L)', min_mm: 140, max_mm: 145, description: 'Wajah lebar' },
-  { category: 'XL', label: 'Extra Large (XL)', min_mm: 146, max_mm: 165, description: 'Wajah ekstra lebar' },
+  {
+    category: 'XS',
+    label: 'Extra Small (XS)',
+    name_id: 'Sangat kecil',
+    min_mm: 115,
+    max_mm: 127,
+    bridge_mm_rec: '15–17 mm',
+    temple_mm_rec: '135–138 mm',
+    description: 'Wajah mungil / remaja',
+    sort_order: 1,
+  },
+  {
+    category: 'S',
+    label: 'Small (S)',
+    name_id: 'Kecil',
+    min_mm: 128,
+    max_mm: 133,
+    bridge_mm_rec: '16–18 mm',
+    temple_mm_rec: '138–140 mm',
+    description: 'Wajah ramping',
+    sort_order: 2,
+  },
+  {
+    category: 'M',
+    label: 'Medium (M)',
+    name_id: 'Sedang',
+    min_mm: 134,
+    max_mm: 139,
+    bridge_mm_rec: '17–19 mm',
+    temple_mm_rec: '140–145 mm',
+    description: 'Ukuran standar mayoritas dewasa',
+    sort_order: 3,
+  },
+  {
+    category: 'L',
+    label: 'Large (L)',
+    name_id: 'Besar',
+    min_mm: 140,
+    max_mm: 145,
+    bridge_mm_rec: '18–20 mm',
+    temple_mm_rec: '143–148 mm',
+    description: 'Wajah lebar',
+    sort_order: 4,
+  },
+  {
+    category: 'XL',
+    label: 'Extra Large (XL)',
+    name_id: 'Sangat besar',
+    min_mm: 146,
+    max_mm: 165,
+    bridge_mm_rec: '19–22 mm',
+    temple_mm_rec: '145–152 mm',
+    description: 'Wajah ekstra lebar',
+    sort_order: 5,
+  },
+]
+
+export const CATALOG_FRAMES_DEFAULT = [
+  {
+    id: 'glasses-1',
+    sku: 'DOOZ-CLS-001',
+    name: 'Classic Black',
+    frame_width_mm: 138,
+    bridge_mm: 18,
+    temple_mm: 142,
+    size_category: 'M',
+    frame_style: 'rectangle',
+    face_shapes: ['oval', 'round'],
+    color: 'Black',
+    material: 'Acetate',
+    price_idr: 299000,
+    thumbnail_url: '/images/1.png',
+    tryon_asset_url: '/images/1.png',
+    tryon_config: { widthMultiplier: 1.4, verticalOffset: 0.015, bridgeOffset: 0 },
+    stock_status: 'in_stock',
+    is_active: true,
+    sort_order: 1,
+  },
+  {
+    id: 'glasses-2',
+    sku: 'DOOZ-AVI-002',
+    name: 'Modern Aviator',
+    frame_width_mm: 142,
+    bridge_mm: 19,
+    temple_mm: 145,
+    size_category: 'L',
+    frame_style: 'aviator',
+    face_shapes: ['oval', 'heart', 'square'],
+    color: 'Gold/Black',
+    material: 'Metal',
+    price_idr: 349000,
+    thumbnail_url: '/images/2.png',
+    tryon_asset_url: '/images/2.png',
+    tryon_config: { widthMultiplier: 1.35, verticalOffset: 0.02, bridgeOffset: 0 },
+    stock_status: 'in_stock',
+    is_active: true,
+    sort_order: 2,
+  },
+  {
+    id: 'glasses-3',
+    sku: 'DOOZ-RND-003',
+    name: 'Retro Round',
+    frame_width_mm: 132,
+    bridge_mm: 17,
+    temple_mm: 140,
+    size_category: 'S',
+    frame_style: 'round',
+    face_shapes: ['square', 'oval', 'oblong'],
+    color: 'Silver',
+    material: 'Metal',
+    price_idr: 329000,
+    thumbnail_url: '/images/3.png',
+    tryon_asset_url: '/images/3.png',
+    tryon_sprites: {
+      0: '/images/3/0.png',
+      15: '/images/3/15.png',
+      30: '/images/3/30.png',
+      45: '/images/3/45.png',
+    },
+    tryon_config: { widthMultiplier: 1.3, verticalOffset: 0.015, bridgeOffset: 0 },
+    stock_status: 'in_stock',
+    is_active: true,
+    sort_order: 3,
+  },
+  {
+    id: 'glasses-4',
+    sku: 'DOOZ-SPT-004',
+    name: 'Sport Wrap',
+    frame_width_mm: 148,
+    bridge_mm: 20,
+    temple_mm: 148,
+    size_category: 'XL',
+    frame_style: 'wraparound',
+    face_shapes: ['oval', 'round', 'square'],
+    color: 'Black',
+    material: 'TR90/Nylon',
+    price_idr: 379000,
+    thumbnail_url: '/images/4.png',
+    tryon_asset_url: '/images/4.png',
+    tryon_config: { widthMultiplier: 1.45, verticalOffset: 0.02, bridgeOffset: 0 },
+    stock_status: 'low_stock',
+    is_active: true,
+    sort_order: 4,
+  },
+  {
+    id: 'glasses-5',
+    sku: 'DOOZ-BRW-005',
+    name: 'Designer Browline',
+    frame_width_mm: 126,
+    bridge_mm: 16,
+    temple_mm: 138,
+    size_category: 'XS',
+    frame_style: 'browline',
+    face_shapes: ['oval', 'square', 'heart'],
+    color: 'Havana/Gold',
+    material: 'Acetate/Metal',
+    price_idr: 399000,
+    thumbnail_url: '/images/5.png',
+    tryon_asset_url: '/images/5.png',
+    tryon_config: { widthMultiplier: 1.35, verticalOffset: 0.018, bridgeOffset: 0 },
+    stock_status: 'in_stock',
+    is_active: true,
+    sort_order: 5,
+  },
 ]
 
 /**
@@ -237,15 +398,21 @@ export function maskPhoneDisplay(phone) {
 
 /**
  * Maps a width in millimeters to DOOZ standard size category (XS, S, M, L, XL).
+ * Uses either a supplied size chart array, cached size chart, or SIZE_CHART_DEFAULT.
  */
-export function mapWidthToSizeCategory(widthMm) {
+export function mapWidthToSizeCategory(widthMm, sizeChart) {
   const n = Number(widthMm)
   if (!Number.isFinite(n) || n <= 0) return 'M'
-  if (n <= 127) return 'XS'
-  if (n <= 133) return 'S'
-  if (n <= 139) return 'M'
-  if (n <= 145) return 'L'
-  return 'XL'
+  const chart =
+    Array.isArray(sizeChart) && sizeChart.length > 0
+      ? sizeChart
+      : safeStorageGet(STORAGE_KEYS.SIZE_CHART_CACHE)?.size_chart || SIZE_CHART_DEFAULT
+  for (const entry of chart) {
+    if (n <= Number(entry.max_mm)) {
+      return entry.category
+    }
+  }
+  return chart[chart.length - 1]?.category || 'XL'
 }
 
 /**
@@ -763,6 +930,176 @@ export async function requestPrivacyDeletion(immediate = true, sessionToken, opt
   return data
 }
 
+/* ============================================================================
+ * Shared Catalog (Single Source of Truth: XS-XL Size Chart & Active DOOZ SKUs)
+ * ============================================================================ */
+
+/**
+ * Fetches the official DOOZ XS–XL size chart from `GET /api/catalog/size-chart`
+ * with ETag support and local fallback.
+ */
+export async function fetchSizeChart(options = {}) {
+  const base = resolveApiBase(options)
+  const cached = safeStorageGet(STORAGE_KEYS.SIZE_CHART_CACHE)
+  const headers = {}
+  if (cached?.etag && !options.forceRefresh) {
+    headers['If-None-Match'] = cached.etag
+  }
+  const qs = options.width_mm ? `?width_mm=${encodeURIComponent(options.width_mm)}` : ''
+  try {
+    const resp = await fetch(`${base}/api/catalog/size-chart${qs}`, {
+      method: 'GET',
+      headers,
+    })
+    if (resp.status === 304 && cached?.size_chart) {
+      return cached
+    }
+    if (!resp.ok) {
+      throw new Error('Gagal memuat size chart dari Customer Hub')
+    }
+    const data = await resp.json()
+    const etag = resp.headers.get('ETag') || ''
+    const result = {
+      ...data,
+      etag,
+      size_chart: Array.isArray(data.size_chart) && data.size_chart.length > 0 ? data.size_chart : SIZE_CHART_DEFAULT,
+    }
+    safeStorageSet(STORAGE_KEYS.SIZE_CHART_CACHE, result)
+    return result
+  } catch {
+    return (
+      cached || {
+        ok: true,
+        offline_fallback: true,
+        size_chart: SIZE_CHART_DEFAULT,
+      }
+    )
+  }
+}
+
+function applyLocalFrameFilter(frames, filters = {}) {
+  const wantSize = String(filters.size || '').trim().toUpperCase()
+  const wantFace = String(filters.face_shape || '').trim().toLowerCase()
+  const wantStock = String(filters.stock || '').trim().toLowerCase()
+  const wantQuery = String(filters.q || '').trim().toLowerCase()
+  return frames.filter((f) => {
+    if (!filters.include_inactive && f.is_active === false) return false
+    if (wantSize && String(f.size_category || '').toUpperCase() !== wantSize) return false
+    if (wantStock && String(f.stock_status || '').toLowerCase() !== wantStock) return false
+    if (
+      wantFace &&
+      !(Array.isArray(f.face_shapes) && f.face_shapes.some((s) => String(s).toLowerCase() === wantFace))
+    ) {
+      return false
+    }
+    if (wantQuery) {
+      const hay = `${f.sku} ${f.name} ${f.size_category} ${f.frame_style} ${f.color} ${f.material}`.toLowerCase()
+      if (!hay.includes(wantQuery)) return false
+    }
+    return true
+  })
+}
+
+/**
+ * Fetches active DOOZ frame SKUs from `GET /api/catalog/frames` with optional filters
+ * (`size`, `width_mm`, `face_shape`, `stock`, `style`, `q`, `include_inactive`).
+ */
+export async function fetchCatalogFrames(filters = {}, options = {}) {
+  const base = resolveApiBase(options)
+  const params = new URLSearchParams()
+  if (filters.size) params.set('size', filters.size)
+  if (filters.width_mm) params.set('width_mm', String(filters.width_mm))
+  if (filters.include_adjacent) params.set('include_adjacent', 'true')
+  if (filters.face_shape) params.set('face_shape', filters.face_shape)
+  if (filters.stock) params.set('stock', filters.stock)
+  if (filters.in_stock_only) params.set('in_stock_only', 'true')
+  if (filters.style) params.set('style', filters.style)
+  if (filters.q) params.set('q', filters.q)
+  if (filters.include_inactive) params.set('include_inactive', 'true')
+
+  const qs = params.toString() ? `?${params.toString()}` : ''
+  try {
+    const resp = await fetch(`${base}/api/catalog/frames${qs}`, { method: 'GET' })
+    if (!resp.ok) {
+      throw new Error('Gagal memuat katalog frame DOOZ')
+    }
+    const data = await resp.json()
+    if (!qs && Array.isArray(data.frames)) {
+      safeStorageSet(STORAGE_KEYS.FRAMES_CACHE, data.frames)
+    }
+    return data
+  } catch {
+    const baseFrames = safeStorageGet(STORAGE_KEYS.FRAMES_CACHE) || CATALOG_FRAMES_DEFAULT
+    const filtered = applyLocalFrameFilter(baseFrames, filters)
+    return {
+      ok: true,
+      offline_fallback: true,
+      total: filtered.length,
+      frames: filtered,
+    }
+  }
+}
+
+function buildStaffHeaders(staffContext = {}) {
+  return {
+    'Content-Type': 'application/json',
+    'X-Staff-User-ID': staffContext.userId || 'admin-dooz',
+    'X-Staff-Role': staffContext.role || 'owner',
+    'X-Staff-Outlet-ID': staffContext.outletId || 'hq-solo',
+  }
+}
+
+export async function adminUpdateSizeChart(sizeChart, staffContext = {}, options = {}) {
+  const base = resolveApiBase(options)
+  const resp = await fetch(`${base}/api/admin/catalog/size-chart`, {
+    method: 'PUT',
+    headers: buildStaffHeaders(staffContext),
+    body: JSON.stringify({ size_chart: sizeChart, recalculate_frames: true }),
+  })
+  const data = await resp.json()
+  if (!resp.ok) throw new Error(data.error || 'Gagal memperbarui tabel ukuran.')
+  safeStorageSet(STORAGE_KEYS.SIZE_CHART_CACHE, { ok: true, size_chart: data.size_chart })
+  return data
+}
+
+export async function adminUpsertCatalogFrame(frame, isUpdate = false, staffContext = {}, options = {}) {
+  const base = resolveApiBase(options)
+  const url = isUpdate
+    ? `${base}/api/admin/catalog/frames/${encodeURIComponent(frame.sku)}`
+    : `${base}/api/admin/catalog/frames`
+  const resp = await fetch(url, {
+    method: isUpdate ? 'PUT' : 'POST',
+    headers: buildStaffHeaders(staffContext),
+    body: JSON.stringify(frame),
+  })
+  const data = await resp.json()
+  if (!resp.ok) throw new Error(data.error || 'Gagal menyimpan SKU frame.')
+  return data
+}
+
+export async function adminDeleteCatalogFrame(sku, staffContext = {}, options = {}) {
+  const base = resolveApiBase(options)
+  const resp = await fetch(`${base}/api/admin/catalog/frames/${encodeURIComponent(sku)}`, {
+    method: 'DELETE',
+    headers: buildStaffHeaders(staffContext),
+  })
+  const data = await resp.json()
+  if (!resp.ok) throw new Error(data.error || 'Gagal menghapus SKU frame.')
+  return data
+}
+
+export async function adminImportCatalog(payload, staffContext = {}, options = {}) {
+  const base = resolveApiBase(options)
+  const resp = await fetch(`${base}/api/admin/catalog/import`, {
+    method: 'POST',
+    headers: buildStaffHeaders(staffContext),
+    body: JSON.stringify(payload),
+  })
+  const data = await resp.json()
+  if (!resp.ok) throw new Error(data.error || 'Gagal mengimpor data katalog.')
+  return data
+}
+
 // Expose global singleton when loaded in browser
 const DoozCaptureSDK = {
   normalizePhone,
@@ -788,8 +1125,15 @@ const DoozCaptureSDK = {
   getStoredPortalSession,
   setStoredPortalSession,
   clearStoredPortalSession,
+  fetchSizeChart,
+  fetchCatalogFrames,
+  adminUpdateSizeChart,
+  adminUpsertCatalogFrame,
+  adminDeleteCatalogFrame,
+  adminImportCatalog,
   INDONESIA_CITIES,
   SIZE_CHART_DEFAULT,
+  CATALOG_FRAMES_DEFAULT,
 }
 
 if (typeof window !== 'undefined') {
